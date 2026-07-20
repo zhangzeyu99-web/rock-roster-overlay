@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 下载最新版本
+    url: https://github.com/zhangzeyu99-web/rock-roster-overlay/releases/latest
+    about: 提交问题前请先确认是否已升级到最新版本。
+  - name: 私密安全报告
+    url: https://github.com/zhangzeyu99-web/rock-roster-overlay/security/advisories/new
+    about: 安全漏洞和敏感信息请勿使用公开 Issue。

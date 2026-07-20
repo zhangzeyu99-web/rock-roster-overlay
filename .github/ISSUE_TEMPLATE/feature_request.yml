@@ -1,0 +1,39 @@
+name: 功能建议
+description: 提议一个明确的直播工作流改进
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 描述当前直播中哪里不方便，不要只写功能名称。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 说明入口、操作方式和期望结果。
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 使用频率
+      options:
+        - 每场直播都会使用
+        - 特定比赛或赛季使用
+        - 偶尔使用
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: 配置与 OBS 兼容要求
+      description: 是否需要兼容旧配置、特定分辨率或现有预设。
+  - type: textarea
+    id: references
+    attributes:
+      label: 参考截图
+      description: 有参考时请说明希望借鉴的具体部分。
