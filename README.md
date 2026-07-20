@@ -4,7 +4,6 @@
 
 ![阵容叠加器首页图](docs/assets/readme-hero-v1.png)
 
-[![CI](https://github.com/zhangzeyu99-web/rock-roster-overlay/actions/workflows/ci.yml/badge.svg)](https://github.com/zhangzeyu99-web/rock-roster-overlay/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/zhangzeyu99-web/rock-roster-overlay?label=release)](https://github.com/zhangzeyu99-web/rock-roster-overlay/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-Windows-1677ff)
 
