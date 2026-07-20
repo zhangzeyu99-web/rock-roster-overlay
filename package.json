@@ -9,6 +9,7 @@
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
     "dev:renderer": "vite --host 127.0.0.1",
     "dev:electron": "wait-on tcp:51736 && npm run build:electron && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:51736 electron dist-electron/main.js",
+    "hero:build": "node scripts/build-readme-hero.mjs",
     "build:electron": "node scripts/build-electron.mjs",
     "build": "tsc --noEmit && vite build && npm run build:electron",
     "test": "vitest run",

@@ -2,7 +2,7 @@
 
 面向 Windows 与 OBS 直播场景的双队阵容叠加工具。填写双方精灵后，可直接获得透明阵容、完整直播间画面、比赛信息栏和 PNG 备份。
 
-![阵容叠加器首页图](docs/assets/readme-hero-v2.png)
+![阵容叠加器首页图](docs/assets/readme-hero-v3.png)
 
 [![Latest release](https://img.shields.io/github/v/release/zhangzeyu99-web/rock-roster-overlay?label=release)](https://github.com/zhangzeyu99-web/rock-roster-overlay/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-Windows-1677ff)
