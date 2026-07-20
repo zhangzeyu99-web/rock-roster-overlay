@@ -1,0 +1,89 @@
+{
+  "name": "rock-roster-overlay",
+  "version": "3.5.0",
+  "description": "洛克王国世界直播阵容透明叠加器",
+  "type": "module",
+  "private": true,
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite --host 127.0.0.1",
+    "dev:electron": "wait-on tcp:51736 && npm run build:electron && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:51736 electron dist-electron/main.js",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build": "tsc --noEmit && vite build && npm run build:electron",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "assets:quality": "node scripts/verify-assets-quality.mjs",
+    "visual:evidence": "node scripts/verify-visual-evidence.mjs",
+    "release:gate": "node scripts/verify-release-gate.mjs",
+    "release:bot": "node scripts/release-bot.mjs",
+    "verify:package": "node scripts/verify-packaged-current.mjs",
+    "cleanup:old": "node scripts/cleanup-old-releases.mjs",
+    "dist": "npm run build && electron-builder --win",
+    "lint": "tsc --noEmit",
+    "sync:pokedex": "node scripts/sync-bwiki-pokedex.mjs",
+    "sync:world": "node scripts/sync-bwiki-pokedex.mjs",
+    "sync:4399": "python scripts/sync-4399-world-pokedex.py",
+    "sync:element-icons": "python scripts/sync-4399-world-element-icons.py",
+    "sync:bwiki": "node scripts/sync-bwiki-pokedex.mjs",
+    "sync:avatars": "node scripts/sync-bwiki-avatars.mjs",
+    "subset:misans": "node scripts/subset-misans-fonts.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "express": "^5.2.1",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.10.4",
+    "@types/pngjs": "^6.0.5",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.27.2",
+    "pngjs": "^7.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0",
+    "vitest": "^4.0.15",
+    "wait-on": "^9.0.3"
+  },
+  "build": {
+    "appId": "com.codex.rock-roster-overlay",
+    "productName": "阵容叠加器",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "seed-data",
+        "to": "seed-data"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "阵容叠加器"
+    }
+  }
+}

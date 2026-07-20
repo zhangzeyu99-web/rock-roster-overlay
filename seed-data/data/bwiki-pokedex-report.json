@@ -1,0 +1,23 @@
+{
+  "sourceUrl": "https://wiki.biligame.com/rocom/%E7%B2%BE%E7%81%B5%E5%9B%BE%E9%89%B4",
+  "source": "洛克王国：世界 BWIKI 精灵图鉴",
+  "sourceCount": 592,
+  "parsedCards": 592,
+  "plannedAssets": 737,
+  "bossCards": 61,
+  "formCards": 186,
+  "shinyAssets": 145,
+  "imageWidth": 360,
+  "removedManagedAssets": 586,
+  "downloaded": 147,
+  "reused": 590,
+  "failed": [],
+  "warnings": [],
+  "output": {
+    "dataDir": "C:\\Users\\Administrator\\Documents\\New project\\rock-roster-overlay\\seed-data",
+    "petsDir": "C:\\Users\\Administrator\\Documents\\New project\\rock-roster-overlay\\seed-data\\assets\\pets",
+    "dataFile": "C:\\Users\\Administrator\\Documents\\New project\\rock-roster-overlay\\seed-data\\data\\pets.json",
+    "reportFile": "C:\\Users\\Administrator\\Documents\\New project\\rock-roster-overlay\\seed-data\\data\\bwiki-pokedex-report.json"
+  },
+  "generatedAt": "2026-07-16T02:53:53.707Z"
+}

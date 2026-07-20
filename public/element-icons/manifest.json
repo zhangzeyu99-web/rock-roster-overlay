@@ -1,0 +1,77 @@
+{
+  "sourceUrl": "https://a.4399.cn/rocom/tools/inquiry",
+  "icons": {
+    "普通": {
+      "file": "normal.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_ISEhGt.198x198.png"
+    },
+    "草": {
+      "file": "grass.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_Voi6Z=.198x198.png"
+    },
+    "火": {
+      "file": "fire.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_PNxPFz.198x198.png"
+    },
+    "水": {
+      "file": "water.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_Q7B4KM.198x198.png"
+    },
+    "光": {
+      "file": "light.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_DEKcR1.198x198.png"
+    },
+    "地": {
+      "file": "earth.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_xLYS85.198x198.png"
+    },
+    "冰": {
+      "file": "ice.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_vk6FAG.198x198.png"
+    },
+    "电": {
+      "file": "electric.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_VPOK90.198x198.png"
+    },
+    "龙": {
+      "file": "dragon.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_bFAXp3.198x198.png"
+    },
+    "毒": {
+      "file": "poison.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_g=A3V7.198x198.png"
+    },
+    "虫": {
+      "file": "bug.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_yVWrdw.198x198.png"
+    },
+    "武": {
+      "file": "martial.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_eRSsmm.198x198.png"
+    },
+    "翼": {
+      "file": "wing.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_QQ5_qo.198x198.png"
+    },
+    "萌": {
+      "file": "cute.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_a0BR7l.198x198.png"
+    },
+    "幽": {
+      "file": "ghost.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_S62psW.198x198.png"
+    },
+    "恶": {
+      "file": "dark.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_w=_ZLz.198x198.png"
+    },
+    "幻": {
+      "file": "illusion.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_CpjCC8.198x198.png"
+    },
+    "机械": {
+      "file": "machine.png",
+      "sourceUrl": "https://fs.img4399.com/box/cp/15322025/10/22/14_N0yXwn.198x198.png"
+    }
+  }
+}

@@ -1,0 +1,620 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import type {
+  HealthBarStyle,
+  NameLabelStyle,
+  PetAsset,
+  ResolvedRosterProject,
+  ResolvedRosterSlot,
+  TeamLayoutMode,
+  TeamSide
+} from "../../types";
+import { getElementIconFile, splitElements } from "../../core/elements";
+import { getHealthColor, normalizeHealthBarStyle } from "../../core/health";
+import { getPetDisplayName, normalizeNameLabelStyle } from "../../core/nameLabel";
+import { getOutputResolutionScale } from "../../core/captureGeometry";
+import { getApiBase } from "../api";
+
+export type OverlayMode = "overlay" | TeamSide;
+
+interface OverlayCanvasProps {
+  resolved: ResolvedRosterProject;
+  mode: OverlayMode;
+  visibleSide?: TeamSide;
+  roomLayout?: boolean;
+}
+
+export function OverlayCanvas({ resolved, mode, visibleSide, roomLayout = false }: OverlayCanvasProps) {
+  const isTeamExport = mode === "left" || mode === "right";
+  const showLeft = mode === "left" || (mode === "overlay" && visibleSide !== "right");
+  const showRight = mode === "right" || (mode === "overlay" && visibleSide !== "left");
+  const cardBackground: ResolvedRosterProject["style"]["cardBackground"] = resolved.style.cardBackground ?? "cloud";
+  const nameLabel = useMemo(
+    () => normalizeNameLabelStyle(resolved.style.nameLabel),
+    [resolved.style.nameLabel]
+  );
+  const healthBar = useMemo(
+    () => normalizeHealthBarStyle(resolved.style.healthBar),
+    [resolved.style.healthBar]
+  );
+  const defeatFilter = resolved.style.defeatFilter ?? { grayscale: 1, opacity: 0.55 };
+  const imageScale = resolved.style.imageScale;
+  const outputScale = getOutputResolutionScale(resolved.style.resolution);
+  const scalePx = (value: number) => value * outputScale;
+  const resolvedCardGapPx = scalePx(resolved.style.cardGap);
+  const cardGapPx = resolvedCardGapPx;
+  const layoutMode: TeamLayoutMode = resolved.style.teamLayout?.mode ?? "curved";
+  const livePresetRailWidth = "13.35%";
+  const cardPlateScale = resolved.style.cardPlateScale ?? 1.15;
+  const cardPlateYOffset = resolved.style.cardPlateYOffset ?? 18;
+  const cardPlateWidth = scalePx((nameLabel.minWidth + nameLabel.height + 8) * cardPlateScale);
+  const teamRailPadTop = 140;
+  const teamRailPadBottom = 230;
+  const petArtMaxWidth = `${100 * imageScale}%`;
+  const petArtMaxHeight = `${112 * imageScale}%`;
+  const style = {
+    "--card-gap": `${resolvedCardGapPx}px`,
+    "--image-scale": String(imageScale),
+    "--pet-art-max-width": petArtMaxWidth,
+    "--pet-art-max-height": petArtMaxHeight,
+    "--card-plate-lift": `${scalePx(70)}px`,
+    "--card-plate-width": `${cardPlateWidth}px`,
+    "--card-plate-width-extra": `${scalePx(48 * cardPlateScale)}px`,
+    "--card-plate-y-offset": `${scalePx(cardPlateYOffset)}px`,
+    "--defeat-grayscale": String(defeatFilter.grayscale),
+    "--defeat-opacity": String(defeatFilter.opacity),
+    "--card-plate-outline-width": `${scalePx(resolved.style.cardPlateOutlineWidth ?? 1)}px`,
+    "--team-center-gap": `${scalePx(resolved.style.teamLayout?.centerGap ?? 1540)}px`,
+    "--team-vertical-offset": `${scalePx(resolved.style.teamLayout?.verticalOffset ?? 0)}px`,
+    "--team-rail-pad-top": `${scalePx(teamRailPadTop)}px`,
+    "--team-rail-pad-x": `${scalePx(24)}px`,
+    "--team-rail-pad-bottom": `${scalePx(teamRailPadBottom)}px`,
+    "--team-rail-width": livePresetRailWidth,
+    "--name-label-font-family": nameLabel.fontFamily,
+    "--name-label-font-size": `${scalePx(nameLabel.fontSize)}px`,
+    "--name-label-font-weight": String(nameLabel.fontWeight),
+    "--name-label-text-color": nameLabel.textColor,
+    "--name-label-text-shadow-color": nameLabel.textShadowColor,
+    "--name-label-background-top": nameLabel.backgroundTop,
+    "--name-label-background-bottom": nameLabel.backgroundBottom,
+    "--name-label-border-color": nameLabel.borderColor,
+    "--name-label-border-width": `${scalePx(nameLabel.borderWidth)}px`,
+    "--name-label-shadow-color": nameLabel.shadowColor,
+    "--name-label-height": `${scalePx(nameLabel.height)}px`,
+    "--name-label-min-width": `${scalePx(nameLabel.minWidth)}px`,
+    "--name-label-pad-x": `${scalePx(nameLabel.horizontalPadding)}px`,
+    "--element-icon-size": `${scalePx(nameLabel.height)}px`,
+    "--element-icon-overlap": `${Math.round(scalePx(nameLabel.height / 2))}px`,
+    "--name-label-gap": `${scalePx(nameLabel.verticalGap)}px`,
+    "--health-height": `${scalePx(healthBar.height)}px`,
+    "--health-gap": `${scalePx(healthBar.gap)}px`,
+    "--health-track": healthBar.trackColor,
+    "--health-text-color": healthBar.textColor
+  } as CSSProperties;
+
+  return (
+    <div
+      className={[
+        "overlay-scene",
+        isTeamExport ? "overlay-scene-team" : "overlay-scene-full",
+        roomLayout ? "overlay-scene-room" : "",
+        `overlay-layout-${layoutMode}`,
+        `overlay-card-${cardBackground}`
+      ].join(" ")}
+      style={style}
+      data-testid="overlay-scene"
+      data-mode={mode}
+      data-layout-mode={layoutMode}
+    >
+      {showLeft && (
+        <TeamRail
+          side="left"
+          label={resolved.teams.left.label}
+          slots={resolved.teams.left.slots}
+          showElementIcon={resolved.style.showElementIcon}
+          nameLabel={nameLabel}
+          healthBar={healthBar}
+          cardGapPx={cardGapPx}
+          cardBackground={cardBackground}
+          teamOnly={mode === "left"}
+          roomLayout={roomLayout}
+          layoutMode={layoutMode}
+        />
+      )}
+      {showRight && (
+        <TeamRail
+          side="right"
+          label={resolved.teams.right.label}
+          slots={resolved.teams.right.slots}
+          showElementIcon={resolved.style.showElementIcon}
+          nameLabel={nameLabel}
+          healthBar={healthBar}
+          cardGapPx={cardGapPx}
+          cardBackground={cardBackground}
+          teamOnly={mode === "right"}
+          roomLayout={roomLayout}
+          layoutMode={layoutMode}
+        />
+      )}
+    </div>
+  );
+}
+
+interface TeamRailProps {
+  side: TeamSide;
+  label: string;
+  slots: ResolvedRosterSlot[];
+  showElementIcon: boolean;
+  nameLabel: NameLabelStyle;
+  healthBar: HealthBarStyle;
+  cardGapPx: number;
+  cardBackground: ResolvedRosterProject["style"]["cardBackground"];
+  teamOnly: boolean;
+  roomLayout: boolean;
+  layoutMode: TeamLayoutMode;
+}
+
+function TeamRail({ side, label, slots, showElementIcon, nameLabel, healthBar, cardGapPx, cardBackground, teamOnly, roomLayout, layoutMode }: TeamRailProps) {
+  return (
+    <section
+      className={[
+        "team-rail",
+        `team-rail-${side}`,
+        teamOnly ? "team-rail-export" : ""
+      ].join(" ")}
+      aria-label={label}
+      data-testid={`team-${side}`}
+    >
+      <div className="team-label">{label}</div>
+      <div className="team-slots">
+        {slots.map((slot, index) => (
+          <RosterCard
+            key={`${side}-${index}`}
+            slot={slot}
+            side={side}
+            index={index}
+            teamOnly={teamOnly}
+            showElementIcon={showElementIcon}
+            nameLabel={nameLabel}
+            healthBar={healthBar}
+            cardGapPx={cardGapPx}
+            cardBackground={cardBackground}
+            roomLayout={roomLayout}
+            layoutMode={layoutMode}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+interface RosterCardProps {
+  slot: ResolvedRosterSlot;
+  side: TeamSide;
+  index: number;
+  teamOnly: boolean;
+  showElementIcon: boolean;
+  nameLabel: NameLabelStyle;
+  healthBar: HealthBarStyle;
+  cardGapPx: number;
+  cardBackground: ResolvedRosterProject["style"]["cardBackground"];
+  roomLayout: boolean;
+  layoutMode: TeamLayoutMode;
+}
+
+function RosterCard({ slot, side, index, teamOnly, showElementIcon, nameLabel, healthBar, cardGapPx, cardBackground, roomLayout, layoutMode }: RosterCardProps) {
+  const element = slot.resolvedElement || slot.element || slot.asset?.element || "普通";
+  const elements = splitElements(element);
+  const sourceName = slot.asset?.name || slot.name || "未选择";
+  const name = getPetDisplayName(sourceName);
+  const hasAsset = Boolean(slot.asset);
+  const imageUrl = slot.asset ? getPetImageUrl(slot.asset) : undefined;
+  const cardRef = useRef<HTMLElement | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const nameBarRef = useRef<HTMLDivElement | null>(null);
+  const [placement, setPlacement] = useState<NamePlacement>();
+
+  const updatePlacement = useCallback(() => {
+    const card = cardRef.current;
+    const nameBar = nameBarRef.current;
+    if (!card || !nameBar) {
+      return;
+    }
+
+    const cardRect = card.getBoundingClientRect();
+    if (cardRect.width <= 0 || cardRect.height <= 0) {
+      return;
+    }
+
+    const metrics = getLayoutMetrics(card, cardRect);
+    const nameRect = nameBar.getBoundingClientRect();
+    const gap = readInheritedPx(card, "--name-label-gap", nameLabel.verticalGap);
+    const healthReserve = healthBar.visible
+      ? readInheritedPx(card, "--health-height", healthBar.height) + readInheritedPx(card, "--health-gap", healthBar.gap)
+      : 0;
+    const minWidth = readInheritedPx(card, "--name-label-min-width", nameLabel.minWidth);
+    const labelHeight = nameRect.height / metrics.scaleY || nameLabel.height;
+    const visualBounds = getRenderedVisualBounds(imageRef.current, cardRect, metrics);
+    const textWidth = measureTextWidth(nameBar, name, nameLabel);
+    const padX = readInheritedPx(card, "--name-label-pad-x", nameLabel.horizontalPadding);
+    const iconReserve = showElementIcon
+      ? readInheritedPx(card, "--element-icon-overlap", Math.round(nameLabel.height / 2)) + 10
+      : 0;
+    const maxWidth = Math.max(64, metrics.width - 6);
+    const width = Math.min(minWidth, maxWidth);
+    const textSpace = Math.max(24, width - padX * 2 - iconReserve);
+    const textScale = textWidth > 0 ? clamp(textSpace / textWidth, 0.72, 1) : 1;
+    const center = (visualBounds.left + visualBounds.right) / 2;
+    const left = clamp(center - width / 2, 3, Math.max(3, metrics.width - width - 3));
+    const labelOverlap = cardBackground === "cloud" ? 12 : 0;
+    const top = clamp(visualBounds.bottom + gap - labelOverlap, 0, Math.max(0, metrics.height - labelHeight - healthReserve - 2));
+    const fontSize = readInheritedPx(card, "--name-label-font-size", nameLabel.fontSize);
+    const next = { left, top, width, textScale, fontSize };
+
+    setPlacement((current) => {
+      if (
+        current &&
+        Math.abs(current.left - next.left) < 0.5 &&
+        Math.abs(current.top - next.top) < 0.5 &&
+        Math.abs(current.width - next.width) < 0.5 &&
+        Math.abs(current.textScale - next.textScale) < 0.01 &&
+        Math.abs(current.fontSize - next.fontSize) < 0.5
+      ) {
+        return current;
+      }
+      return next;
+    });
+  }, [cardBackground, healthBar.gap, healthBar.height, healthBar.visible, name, nameLabel, showElementIcon]);
+
+  useEffect(() => {
+    updatePlacement();
+    const card = cardRef.current;
+    if (!card || typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updatePlacement);
+      return () => window.removeEventListener("resize", updatePlacement);
+    }
+    const observer = new ResizeObserver(updatePlacement);
+    observer.observe(card);
+    window.addEventListener("resize", updatePlacement);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updatePlacement);
+    };
+  }, [imageUrl, updatePlacement]);
+
+  const cardStyle = {
+    "--slot-base-top": `${(index / 6) * 100}%`,
+    "--slot-gap-offset": `${(index - 2.5) * cardGapPx}px`,
+    "--slot-curve-offset": `${teamOnly || layoutMode === "vertical" ? 0 : getSlotCurveOffset(side, index)}px`,
+    ...(placement
+      ? {
+          "--name-left": `${placement.left}px`,
+          "--name-top": `${placement.top}px`,
+          "--name-width": `${placement.width}px`,
+          "--name-text-font-size": `${placement.fontSize * placement.textScale}px`
+        }
+      : {})
+  } as CSSProperties;
+
+  return (
+    <article
+      className={[
+        "roster-card",
+        hasAsset ? "" : "roster-card-missing",
+        slot.defeated ? "roster-card-defeated" : ""
+      ].join(" ")}
+      data-testid="roster-card"
+      data-side={side}
+      ref={cardRef}
+      style={cardStyle}
+    >
+      {cardBackground !== "transparent" && <PetCardPlate variant={cardBackground} />}
+      <div className="pet-art-wrap">
+        {imageUrl ? (
+          <img
+            className="pet-art"
+            src={imageUrl}
+            alt={sourceName}
+            crossOrigin="anonymous"
+            draggable={false}
+            ref={imageRef}
+            onLoad={updatePlacement}
+          />
+        ) : (
+          <div className="pet-art-placeholder">{index + 1}</div>
+        )}
+      </div>
+      <div
+        className={["pet-name-bar", showElementIcon ? "pet-name-bar-with-icon" : ""].join(" ")}
+        title={`${sourceName} / ${element}`}
+        ref={nameBarRef}
+      >
+        {showElementIcon && (
+          <span className="element-badges" aria-label={`属性：${elements.join("/")}`}>
+            {elements.map((item) => (
+              <ElementIcon element={item} key={item} />
+            ))}
+          </span>
+        )}
+        <span className="pet-name">{name}</span>
+      </div>
+      {healthBar.visible && slot.health.visible !== false && (
+        <HealthBar health={slot.health} style={healthBar} />
+      )}
+    </article>
+  );
+}
+
+function getSlotCurveOffset(side: TeamSide, index: number) {
+  const curve = [74, 50, 24, 6, 32, 60][index] ?? 0;
+  return side === "left" ? curve : -curve;
+}
+
+function PetCardPlate({ variant }: { variant: Exclude<ResolvedRosterProject["style"]["cardBackground"], "transparent"> }) {
+  if (variant === "cloud") {
+    return (
+      <img
+        className="pet-card-plate pet-card-plate-cloud"
+        src={`${getApiBase()}/card-plates/rock-world-cloud-plate.png`}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={["pet-card-plate", `pet-card-plate-${variant}`].join(" ")}
+      aria-hidden="true"
+    />
+  );
+}
+
+function HealthBar({ health, style }: { health: ResolvedRosterSlot["health"]; style: HealthBarStyle }) {
+  const percent = Math.round(health.percent);
+  return (
+    <div
+      className={[
+        "pet-health-bar",
+        style.widthMode === "card" ? "pet-health-bar-card" : ""
+      ].join(" ")}
+      data-testid="pet-health-bar"
+      style={
+        {
+          "--health-percent": `${percent}%`,
+          "--health-fill": getHealthColor(percent, style)
+        } as CSSProperties
+      }
+    >
+      <span className="pet-health-track">
+        <span className="pet-health-fill" />
+      </span>
+      {style.showPercent && <span className="pet-health-percent">{percent}%</span>}
+    </div>
+  );
+}
+
+function ElementIcon({ element }: { element: string }) {
+  const iconFile = getElementIconFile(element);
+  if (!iconFile) {
+    return (
+      <span className="element-icon-frame" title={element}>
+        <span className="element-icon-fallback">{element}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="element-icon-frame" title={element}>
+      <img
+        className="element-icon"
+        src={`${getApiBase()}/element-icons/${iconFile}`}
+        alt={element}
+        draggable={false}
+      />
+    </span>
+  );
+}
+
+function getPetImageUrl(asset: PetAsset): string {
+  if (/^(https?:|data:|blob:)/.test(asset.imagePath)) {
+    return asset.imagePath;
+  }
+  const fileName = asset.imagePath.replace(/^assets\/pets\//, "");
+  return `${getApiBase()}/assets/pets/${encodeURIComponent(fileName)}?v=${encodeURIComponent(asset.updatedAt)}`;
+}
+
+interface NamePlacement {
+  left: number;
+  top: number;
+  width: number;
+  textScale: number;
+  fontSize: number;
+}
+
+interface VisualBounds {
+  left: number;
+  right: number;
+  bottom: number;
+  width: number;
+}
+
+interface LayoutMetrics {
+  width: number;
+  height: number;
+  scaleX: number;
+  scaleY: number;
+}
+
+interface AlphaBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+const alphaBoundsCache = new Map<string, AlphaBounds>();
+const alphaBoundsCacheLimit = 256;
+
+function getRenderedVisualBounds(
+  image: HTMLImageElement | null,
+  cardRect: DOMRect,
+  metrics: LayoutMetrics
+): VisualBounds {
+  if (!image || !image.complete || image.naturalWidth === 0 || image.naturalHeight === 0) {
+    return {
+      left: metrics.width * 0.12,
+      right: metrics.width * 0.88,
+      bottom: metrics.height * 0.72,
+      width: metrics.width * 0.76
+    };
+  }
+
+  const imageRect = image.getBoundingClientRect();
+  const alphaBounds = getImageAlphaBounds(image);
+  const imageLayoutRect = {
+    left: (imageRect.left - cardRect.left) / metrics.scaleX,
+    top: (imageRect.top - cardRect.top) / metrics.scaleY,
+    width: imageRect.width / metrics.scaleX,
+    height: imageRect.height / metrics.scaleY
+  };
+  const renderedRect = getContainedImageRect(imageLayoutRect, image.naturalWidth, image.naturalHeight);
+  const scaleX = renderedRect.width / image.naturalWidth;
+  const scaleY = renderedRect.height / image.naturalHeight;
+  const left = renderedRect.left + alphaBounds.minX * scaleX;
+  const right = renderedRect.left + (alphaBounds.maxX + 1) * scaleX;
+  const bottom = renderedRect.top + (alphaBounds.maxY + 1) * scaleY;
+
+  return {
+    left,
+    right,
+    bottom,
+    width: Math.max(1, right - left)
+  };
+}
+
+function getLayoutMetrics(element: HTMLElement, rect: DOMRect): LayoutMetrics {
+  const width = element.offsetWidth || rect.width;
+  const height = element.offsetHeight || rect.height;
+  return {
+    width,
+    height,
+    scaleX: width > 0 ? rect.width / width : 1,
+    scaleY: height > 0 ? rect.height / height : 1
+  };
+}
+
+function getContainedImageRect(
+  rect: Pick<DOMRect, "left" | "top" | "width" | "height">,
+  naturalWidth: number,
+  naturalHeight: number
+): Pick<DOMRect, "left" | "top" | "width" | "height"> {
+  const boxRatio = rect.width / rect.height;
+  const imageRatio = naturalWidth / naturalHeight;
+
+  if (!Number.isFinite(boxRatio) || !Number.isFinite(imageRatio) || rect.width <= 0 || rect.height <= 0) {
+    return rect;
+  }
+
+  if (imageRatio > boxRatio) {
+    const height = rect.width / imageRatio;
+    return {
+      left: rect.left,
+      top: rect.top + (rect.height - height) / 2,
+      width: rect.width,
+      height
+    };
+  }
+
+  const width = rect.height * imageRatio;
+  return {
+    left: rect.left + (rect.width - width) / 2,
+    top: rect.top,
+    width,
+    height: rect.height
+  };
+}
+
+function getImageAlphaBounds(image: HTMLImageElement): AlphaBounds {
+  const key = `${image.currentSrc || image.src}:${image.naturalWidth}x${image.naturalHeight}`;
+  const cached = alphaBoundsCache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const fallback = {
+    minX: 0,
+    minY: 0,
+    maxX: image.naturalWidth - 1,
+    maxY: image.naturalHeight - 1
+  };
+
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) {
+      return fallback;
+    }
+    context.drawImage(image, 0, 0);
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let minX = canvas.width;
+    let minY = canvas.height;
+    let maxX = -1;
+    let maxY = -1;
+
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        if (data[(y * canvas.width + x) * 4 + 3] > 8) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+
+    const bounds = maxX >= 0 ? { minX, minY, maxX, maxY } : fallback;
+    rememberAlphaBounds(key, bounds);
+    return bounds;
+  } catch {
+    return fallback;
+  }
+}
+
+function rememberAlphaBounds(key: string, bounds: AlphaBounds): void {
+  if (alphaBoundsCache.size >= alphaBoundsCacheLimit) {
+    const oldestKey = alphaBoundsCache.keys().next().value;
+    if (oldestKey) {
+      alphaBoundsCache.delete(oldestKey);
+    }
+  }
+  alphaBoundsCache.set(key, bounds);
+}
+
+function measureTextWidth(nameBar: HTMLElement, text: string, nameLabel: NameLabelStyle): number {
+  const nameNode = nameBar.querySelector(".pet-name");
+  const computed = window.getComputedStyle(nameNode instanceof HTMLElement ? nameNode : nameBar);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return text.length * 16;
+  }
+  context.font = computed.font || `${nameLabel.fontWeight} ${computed.fontSize} ${computed.fontFamily}`;
+  return context.measureText(text).width;
+}
+
+function readInheritedPx(element: HTMLElement, property: string, fallback: number): number {
+  const raw = window.getComputedStyle(element).getPropertyValue(property).trim();
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (max < min) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, value));
+}
