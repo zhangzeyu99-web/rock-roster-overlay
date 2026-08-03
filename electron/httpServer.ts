@@ -17,6 +17,7 @@ import {
   type StorePaths
 } from "./dataStore";
 import { readLiveState, resetLiveHealth, writeSlotHealth } from "./liveStateStore";
+import { getLocalCorsDecision } from "./security";
 
 export type ExportMode = CaptureMode;
 
@@ -65,8 +66,23 @@ export async function startHttpServer(options: HttpServerOptions): Promise<HttpS
   heartbeatTimer.unref?.();
 
   serverApp.use(express.json({ limit: "1mb" }));
-  serverApp.use((_request, response, next) => {
-    response.setHeader("Access-Control-Allow-Origin", "*");
+  serverApp.use((request, response, next) => {
+    const origin = request.get("Origin");
+    const corsDecision = getLocalCorsDecision(request.method, origin);
+    if (corsDecision === "reject") {
+      response.status(403).json({ error: "cross-site request blocked" });
+      return;
+    }
+    if (corsDecision === "allow" && origin) {
+      response.setHeader("Access-Control-Allow-Origin", origin);
+      response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      response.setHeader("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, OPTIONS");
+      response.setHeader("Vary", "Origin");
+    }
+    if (request.method === "OPTIONS") {
+      response.status(204).end();
+      return;
+    }
     next();
   });
 

@@ -1369,7 +1369,7 @@ export function App() {
           <div className="preview-title">
             <strong>{getCaptureModeLabel(previewMode)}</strong>
             <span>{getPreviewModeDescription(previewMode)}</span>
-            {previewMode === "room" && (
+            {previewMode === "room" && activePanel === "room" && (
               <em>
                 {selectedTitleImage
                   ? "正在编辑 标题图"
@@ -1473,8 +1473,8 @@ export function App() {
             {previewMode === "room" ? (
               <RoomCanvas
                 resolved={previewResolved}
-                editable
-                selectedTextId={activeRoomSelectionId}
+                editable={activePanel === "room"}
+                selectedTextId={activePanel === "room" ? activeRoomSelectionId : undefined}
                 onSelectText={setSelectedRoomTextId}
                 onChangeTextBox={(box) => updateRoomTextBox(box, { transient: true })}
                 onCommitTextBox={(box) => updateRoomTextBox(box, { immediate: true })}

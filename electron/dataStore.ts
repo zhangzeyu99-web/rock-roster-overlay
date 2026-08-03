@@ -24,6 +24,7 @@ import {
   upsertProjectInCollection
 } from "../src/core/projectPresets";
 import { readLiveState } from "./liveStateStore";
+import { isPathWithinRoot } from "./security";
 
 const supportedImageExtensions = new Set([".png", ".webp"]);
 const supportedBackgroundExtensions = new Set([".png", ".jpg", ".jpeg", ".webp"]);
@@ -356,7 +357,7 @@ export async function importAssetsFromFolder(folder: string): Promise<ImportResu
 export async function getAssetFilePath(fileName: string): Promise<string | undefined> {
   const paths = await ensureStore();
   const resolved = path.resolve(paths.assetsDir, fileName);
-  if (!resolved.startsWith(path.resolve(paths.assetsDir))) {
+  if (!isPathWithinRoot(paths.assetsDir, resolved)) {
     return undefined;
   }
   if (!(await exists(resolved))) {
@@ -368,7 +369,7 @@ export async function getAssetFilePath(fileName: string): Promise<string | undef
 export async function getAvatarFilePath(fileName: string): Promise<string | undefined> {
   const paths = await ensureStore();
   const resolved = path.resolve(paths.avatarsDir, fileName.replace(/^assets[\\/]avatars[\\/]/, ""));
-  if (!resolved.startsWith(path.resolve(paths.avatarsDir))) {
+  if (!isPathWithinRoot(paths.avatarsDir, resolved)) {
     return undefined;
   }
   if (!(await exists(resolved))) {
@@ -380,7 +381,7 @@ export async function getAvatarFilePath(fileName: string): Promise<string | unde
 export async function getBackgroundFilePath(fileName: string): Promise<string | undefined> {
   const paths = await ensureStore();
   const resolved = path.resolve(paths.backgroundsDir, fileName);
-  if (!resolved.startsWith(path.resolve(paths.backgroundsDir))) {
+  if (!isPathWithinRoot(paths.backgroundsDir, resolved)) {
     return undefined;
   }
   if (!(await exists(resolved))) {
@@ -392,7 +393,7 @@ export async function getBackgroundFilePath(fileName: string): Promise<string | 
 export async function getHudImageFilePath(fileName: string): Promise<string | undefined> {
   const paths = await ensureStore();
   const resolved = path.resolve(paths.hudImagesDir, fileName.replace(/^assets[\\/]hud[\\/]/, ""));
-  if (!resolved.startsWith(path.resolve(paths.hudImagesDir))) {
+  if (!isPathWithinRoot(paths.hudImagesDir, resolved)) {
     return undefined;
   }
   if (!(await exists(resolved))) {
@@ -454,11 +455,11 @@ async function resolveHudImageFilePath(imagePath: string, publicRoot: string): P
   }
 
   const legacyBackgroundPath = path.resolve(paths.backgroundsDir, imagePath);
-  if (legacyBackgroundPath.startsWith(path.resolve(paths.backgroundsDir)) && (await exists(legacyBackgroundPath))) {
+  if (isPathWithinRoot(paths.backgroundsDir, legacyBackgroundPath) && (await exists(legacyBackgroundPath))) {
     return legacyBackgroundPath;
   }
   const hudPath = path.resolve(paths.hudImagesDir, imagePath);
-  if (hudPath.startsWith(path.resolve(paths.hudImagesDir)) && (await exists(hudPath))) {
+  if (isPathWithinRoot(paths.hudImagesDir, hudPath) && (await exists(hudPath))) {
     return hudPath;
   }
   return undefined;

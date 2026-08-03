@@ -139,12 +139,29 @@ test("runtime cache monitor shows status and manual cleanup stays reachable", as
 
   await page.goto("/");
   await expect(page.locator(".app-nav")).not.toContainText("素材");
+  await expect(page.locator(".room-scene")).not.toHaveClass(/room-scene-editable/);
+  await expect(page.locator(".room-text-box-selected, .room-broadcast-title-selected")).toHaveCount(0);
+  await expect(page.locator(".preview-title em")).toHaveCount(0);
   await expect(page.locator(".system-status-panel")).toContainText("素材库");
   await expect(page.locator(".system-status-panel")).toContainText("运行占用");
   await expect(page.locator(".system-status-cache")).toContainText("正常 512MB");
   await page.locator(".system-status-head button").click();
   await expect.poll(() => page.evaluate(() => (window as any).__runtimeClears as number)).toBe(1);
   await expect(page.locator(".system-status-cache")).toContainText("正常 380MB");
+  await page.setViewportSize({ width: 1180, height: 760 });
+  const statusLineGeometry = await page.locator(".system-status-cache").evaluate((row) => {
+    const label = row.querySelector("span")?.getBoundingClientRect();
+    const value = row.querySelector("strong")?.getBoundingClientRect();
+    return {
+      labelHeight: label?.height ?? 0,
+      valueHeight: value?.height ?? 0,
+      labelCenter: (label?.top ?? 0) + (label?.height ?? 0) / 2,
+      valueCenter: (value?.top ?? 0) + (value?.height ?? 0) / 2
+    };
+  });
+  expect(statusLineGeometry.labelHeight).toBeLessThan(18);
+  expect(statusLineGeometry.valueHeight).toBeLessThan(18);
+  expect(Math.abs(statusLineGeometry.labelCenter - statusLineGeometry.valueCenter)).toBeLessThanOrEqual(2);
 });
 
 test("room text editing stays stable while dragging, resizing, and changing style controls", async ({ page }) => {
