@@ -660,7 +660,10 @@ function getRoomHudAssetUrl(imagePath: string | undefined): string | undefined {
 }
 
 function getRoomPlayerBarArtUrl(preset: RoomPlayerBarPreset): string | undefined {
-  if (preset === "s3-storybook" || preset === "s3-prism-bookmark" || preset === "s3-clover-hinge") {
+  if (preset === "s3-clover-hinge") {
+    return `${getApiBase()}/room-player-bars/s3-clover-hinge-wide.png`;
+  }
+  if (preset === "s3-storybook" || preset === "s3-prism-bookmark") {
     return `${getApiBase()}/room-player-bars/${preset}.png`;
   }
   return undefined;

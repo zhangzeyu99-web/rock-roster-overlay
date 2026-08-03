@@ -9,7 +9,7 @@
 
 ## 下载
 
-当前稳定版：**v3.5.0**
+当前稳定版：**v3.5.1**
 
 [下载 Windows 安装包](https://github.com/zhangzeyu99-web/rock-roster-overlay/releases/latest)
 

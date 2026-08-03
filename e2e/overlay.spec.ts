@@ -473,7 +473,8 @@ test("room player bar supports the enabled live scoreboard presets", async ({ pa
         centerLabelMiddle:
           separatorRect && formatRect ? (separatorRect.top + formatRect.bottom) / 2 : 0,
         scorePillMiddle: scorePill ? (scorePill.top + scorePill.bottom) / 2 : 0,
-        artNaturalWidth: (document.querySelector(".room-player-bar-art") as HTMLImageElement | null)?.naturalWidth ?? 0
+        artNaturalWidth: (document.querySelector(".room-player-bar-art") as HTMLImageElement | null)?.naturalWidth ?? 0,
+        artSource: (document.querySelector(".room-player-bar-art") as HTMLImageElement | null)?.currentSrc ?? ""
       };
     });
 
@@ -512,6 +513,10 @@ test("room player bar supports the enabled live scoreboard presets", async ({ pa
     if (variant.preset === "s3-prism-bookmark") {
       expect(geometry.leftScoreLeft).toBeLessThan(geometry.barLeft + 40);
       expect(geometry.rightScoreRight).toBeGreaterThan(geometry.barRight - 40);
+    }
+    if (variant.preset === "s3-clover-hinge") {
+      expect(geometry.artSource).toContain("s3-clover-hinge-wide.png");
+      expect(geometry.separatorWidth / geometry.scorePillWidth).toBeCloseTo(0.25, 2);
     }
   }
 });

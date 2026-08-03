@@ -6175,7 +6175,7 @@ button.system-status-row {
 }
 
 .room-player-bar-preset-s3-clover-hinge .room-score-pill {
-  grid-template-columns: 39% 22% 39%;
+  grid-template-columns: 37.5% 25% 37.5%;
 }
 
 .room-player-bar-preset-s3-storybook .room-score-value,
@@ -6257,7 +6257,8 @@ button.system-status-row {
 }
 
 .room-player-bar-preset-s3-clover-hinge .room-score-format {
-  width: 22%;
+  width: 25%;
+  font-size: calc(var(--room-s3-unit) * 28);
 }
 
 .room-player-bar-preset-s3-prism-bookmark .room-score-pill {
