@@ -180,7 +180,7 @@ test("room mode renders the decorated live room without changing roster data", a
   await page.goto("/overlay/default?mode=room");
 
   await expect(page.getByTestId("room-scene")).toBeVisible();
-  await expect(page.locator(".room-background-image")).toHaveCount(1);
+  await expect(page.locator(".room-background-image")).toHaveCount(0);
   await expect(page.locator(".room-text-title")).toContainText("S3·铅字幻梦");
   await expect(page.locator(".room-text-player-left")).toContainText("左");
   await expect(page.locator(".room-text-player-right")).toContainText("右");
@@ -274,16 +274,16 @@ test("room mode renders the reference broadcast HUD chrome with a bottom player 
   expect(geometry.titleImage.width).toBeLessThan(430);
   expect(geometry.titleImage.height).toBeGreaterThan(96);
   expect(geometry.titleImage.height).toBeLessThan(130);
-  expect(geometry.playerBar.y).toBeGreaterThan(908);
-  expect(geometry.playerBar.y).toBeLessThan(920);
-  expect(geometry.playerBar.width).toBeGreaterThan(1480);
-  expect(geometry.playerBar.width).toBeLessThan(1510);
-  expect(geometry.playerBar.height).toBeGreaterThanOrEqual(144);
-  expect(geometry.playerBar.height).toBeLessThanOrEqual(152);
+  expect(geometry.playerBar.y).toBeGreaterThan(940);
+  expect(geometry.playerBar.y).toBeLessThan(948);
+  expect(geometry.playerBar.width).toBeGreaterThan(1220);
+  expect(geometry.playerBar.width).toBeLessThan(1240);
+  expect(geometry.playerBar.height).toBeGreaterThanOrEqual(110);
+  expect(geometry.playerBar.height).toBeLessThanOrEqual(114);
   expect(geometry.playerBar.radius).toBe(0);
-  expect(geometry.scorePill.width).toBeGreaterThan(420);
-  expect(geometry.scorePill.width).toBeLessThan(450);
-  expect(geometry.scorePill.height).toBeGreaterThan(144);
+  expect(geometry.scorePill.width).toBeGreaterThan(350);
+  expect(geometry.scorePill.width).toBeLessThan(362);
+  expect(geometry.scorePill.height).toBeGreaterThan(110);
   expect(geometry.scorePill.radius).toBe(0);
   expect(geometry.playerBarArtWidth).toBeGreaterThan(1000);
   expect(geometry.avatarSlotCount).toBe(0);
@@ -316,8 +316,8 @@ test("room player bar supports the enabled live scoreboard presets", async ({ pa
     {
       preset: "s3-clover-hinge",
       expectedClass: "room-player-bar-preset-s3-clover-hinge",
-      minHeight: 144,
-      maxHeight: 152,
+      minHeight: 110,
+      maxHeight: 114,
       sideScores: 0,
       centralScores: 2
     },
@@ -480,7 +480,12 @@ test("room player bar supports the enabled live scoreboard presets", async ({ pa
 
     expect(geometry.barHeight).toBeGreaterThanOrEqual(variant.minHeight);
     expect(geometry.barHeight).toBeLessThanOrEqual(variant.maxHeight);
-    const expectedWidthRatio = variant.preset === "classic" || variant.preset === "compact" ? 0.594 : 0.702;
+    const expectedWidthRatio =
+      variant.preset === "s3-clover-hinge"
+        ? 0.576
+        : variant.preset === "classic" || variant.preset === "compact"
+          ? 0.594
+          : 0.702;
     expect((geometry.barRight - geometry.barLeft) / 1920).toBeCloseTo(expectedWidthRatio, 2);
     expect(geometry.nameFontSize).toBeGreaterThan(variant.preset === "compact" ? 32 : 40);
     expect(geometry.scoreFontSize).toBeGreaterThan(variant.preset === "compact" ? 54 : 58);
@@ -622,11 +627,96 @@ test("S3 player bars preserve their proportions across output resolutions", asyn
       };
     });
 
-    expect(geometry.width / size.width).toBeCloseTo(0.78, 2);
-    expect(geometry.height / size.height).toBeCloseTo(148 / 1080, 2);
-    expect(geometry.bottom / size.height).toBeCloseTo(18 / 1080, 2);
-    expect(geometry.nameFontSize / size.height).toBeCloseTo(42 / 1080, 2);
+    expect(geometry.width / size.width).toBeCloseTo(0.64, 2);
+    expect(geometry.height / size.height).toBeCloseTo(112 / 1080, 2);
+    expect(geometry.bottom / size.height).toBeCloseTo(24 / 1080, 2);
+    expect(geometry.nameFontSize / size.height).toBeCloseTo(38 / 1080, 2);
   }
+});
+
+test("1440p cloud roster keeps restrained visual scale and separated plates", async ({ page }) => {
+  const geometries: Array<{
+    labelWidth: number;
+    labelHeight: number;
+    cardTop: number;
+    firstLeftOffset: number;
+    petWidth: number;
+    plateWidth: number;
+    maxPlateOverlap: number;
+  }> = [];
+
+  for (const resolution of [
+    { width: 1920, height: 1080 },
+    { width: 2560, height: 1440 }
+  ]) {
+    await page.unroute("**/api/state/default").catch(() => undefined);
+    await page.route("**/api/state/default", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...resolved,
+          style: {
+            ...resolved.style,
+            resolution,
+            cardBackground: "cloud",
+            cardGap: 8,
+            imageScale: 1.02,
+            teamLayout: { mode: "curved", centerGap: 1540, verticalOffset: 0 }
+          }
+        })
+      });
+    });
+
+    await page.setViewportSize(resolution);
+    await page.goto("/overlay/default?mode=overlay");
+    await expect(page.locator(".team-rail-left .pet-name-bar")).toHaveCount(6);
+    const geometry = await page.locator(".team-rail-left").evaluate((rail) => {
+      const card = rail.querySelector(".roster-card");
+      if (!card) {
+        throw new Error("missing roster card");
+      }
+      const label = card.querySelector(".pet-name-bar")?.getBoundingClientRect();
+      const pet = card.querySelector(".pet-art")?.getBoundingClientRect();
+      const plate = card.querySelector(".pet-card-plate-cloud")?.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const railRect = rail.getBoundingClientRect();
+      const plates = [...rail.querySelectorAll(".pet-card-plate-cloud")]
+        .map((node) => node.getBoundingClientRect())
+        .sort((left, right) => left.top - right.top);
+      const maxPlateOverlap = plates.slice(1).reduce(
+        (maximum, current, index) => Math.max(maximum, plates[index]!.bottom - current.top),
+        0
+      );
+      return {
+        labelWidth: label?.width ?? 0,
+        labelHeight: label?.height ?? 0,
+        cardTop: cardRect.top,
+        firstLeftOffset: cardRect.left - railRect.left,
+        petWidth: pet?.width ?? 0,
+        plateWidth: plate?.width ?? 0,
+        maxPlateOverlap
+      };
+    });
+    geometries.push(geometry);
+  }
+
+  const preset1080p = geometries[0]!;
+  const preset1440p = geometries[1]!;
+  expect(preset1080p.labelWidth).toBeGreaterThanOrEqual(126);
+  expect(preset1080p.labelHeight).toBeGreaterThanOrEqual(27);
+  for (const scaleRatio of [
+    preset1440p.labelWidth / preset1080p.labelWidth,
+    preset1440p.labelHeight / preset1080p.labelHeight,
+    preset1440p.firstLeftOffset / preset1080p.firstLeftOffset,
+    preset1440p.petWidth / preset1080p.petWidth,
+    preset1440p.plateWidth / preset1080p.plateWidth
+  ]) {
+    expect(scaleRatio).toBeGreaterThan(1.05);
+    expect(scaleRatio).toBeLessThan(1.18);
+  }
+  expect(preset1440p.cardTop / (1440 / 1080)).toBeCloseTo(preset1080p.cardTop, 0);
+  expect(preset1440p.maxPlateOverlap).toBeLessThanOrEqual(2);
 });
 
 test("room mode supports imported title images and animated player slot visibility", async ({ page }) => {
@@ -1100,7 +1190,7 @@ test("curved and v3.2.5 roster presets keep the broadcast safe area at 1080p and
   const layouts = ["curved", "vertical"] as const;
   const sizes = [
     { width: 1920, height: 1080, label: "1080p", imageScale: 1.02 },
-    { width: 2560, height: 1440, label: "1440p", imageScale: 1.06 }
+    { width: 2560, height: 1440, label: "1440p", imageScale: 1.02 }
   ];
 
   for (const layout of layouts) {
@@ -1156,8 +1246,8 @@ test("curved and v3.2.5 roster presets keep the broadcast safe area at 1080p and
 
       expect(geometry.minLeft).toBeGreaterThanOrEqual(0);
       expect(geometry.maxRight).toBeLessThanOrEqual(size.width);
-      expect(geometry.minTop).toBeGreaterThan(size.height * 0.07);
-      expect(geometry.maxBottom).toBeLessThan(geometry.playerBarTop - size.height * 0.015);
+      expect(geometry.minTop).toBeGreaterThan(size.height * 0.16);
+      expect(geometry.maxBottom).toBeLessThan(geometry.playerBarTop - size.height * 0.025);
       expect(geometry.leftSafeRight).toBeLessThan(size.width * 0.25);
       expect(geometry.rightSafeLeft).toBeGreaterThan(size.width * 0.75);
 
@@ -1217,8 +1307,8 @@ test("transparent OBS live-safe preset scales for 1080p and 1440p", async ({ pag
     expect(geometry.maxCardBottom).toBeLessThan(resolution.height * 0.89);
     expect(geometry.leftSafeRight).toBeLessThan(resolution.width * 0.17);
     expect(geometry.rightSafeLeft).toBeGreaterThan(resolution.width * 0.83);
-    expect(geometry.railWidth).toBeGreaterThan(resolution.width * 0.13);
-    expect(geometry.railWidth).toBeLessThan(resolution.width * 0.14);
+    const expectedRailRatio = resolution.width === 2560 ? 0.11 : 0.1335;
+    expect(geometry.railWidth / resolution.width).toBeCloseTo(expectedRailRatio, 2);
   }
 });
 
@@ -1492,7 +1582,8 @@ test("single team OBS page uses the selected 1440p capture size", async ({ page 
   expect(geometry.frame.width).toBeCloseTo(560, 0);
   expect(geometry.frame.height).toBeCloseTo(1440, 0);
   expect(geometry.scale).toBeCloseTo(1, 2);
-  expect(geometry.labelHeight).toBeGreaterThan(32);
+  expect(geometry.labelHeight).toBeGreaterThan(30);
+  expect(geometry.labelHeight).toBeLessThan(32);
   expect(geometry.minCardTop).toBeGreaterThan(110);
   expect(geometry.maxCardBottom).toBeLessThan(1300);
 });
@@ -1612,6 +1703,35 @@ test("OBS side parameter renders one anchored team with transparent center", asy
   const alpha = png.data[(centerY * png.width + centerX) * 4 + 3];
 
   expect(alpha).toBe(0);
+});
+
+test("saved team visibility applies to combined and room outputs but not single-team outputs", async ({ page }) => {
+  await page.unroute("**/api/state/default");
+  await page.route("**/api/state/default", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...resolved,
+        style: {
+          ...resolved.style,
+          teamVisibility: { left: false, right: true }
+        }
+      })
+    });
+  });
+
+  await page.goto("/overlay/default?mode=overlay");
+  await expect(page.getByTestId("team-left")).toHaveCount(0);
+  await expect(page.getByTestId("team-right")).toHaveCount(1);
+
+  await page.goto("/overlay/default?mode=room");
+  await expect(page.getByTestId("team-left")).toHaveCount(0);
+  await expect(page.getByTestId("team-right")).toHaveCount(1);
+
+  await page.goto("/overlay/default?mode=left");
+  await expect(page.getByTestId("team-left")).toHaveCount(1);
+  await expect(page.getByTestId("team-right")).toHaveCount(0);
 });
 
 test("overlay keeps the center transparent for OBS compositing", async ({ page }) => {

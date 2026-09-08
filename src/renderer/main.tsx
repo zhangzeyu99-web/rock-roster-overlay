@@ -4,6 +4,7 @@ import { App } from "./App";
 import { FloatingControlPage } from "./FloatingControlPage";
 import { OverlayPage } from "./OverlayPage";
 import "./styles.css";
+import "./s4-theme.css";
 
 const root = createRoot(document.getElementById("root")!);
 

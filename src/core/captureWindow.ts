@@ -19,8 +19,12 @@ export function isFullscreenCaptureMode(mode: CaptureMode): boolean {
   return mode === "overlay" || mode === "room";
 }
 
-export function shouldIgnoreCaptureWindowMouse(mode: CaptureMode, clickThrough: boolean): boolean {
-  return clickThrough;
+export function shouldIgnoreCaptureWindowMouse(
+  mode: CaptureMode,
+  clickThrough: boolean,
+  focused = false
+): boolean {
+  return clickThrough && !focused;
 }
 
 export function getCaptureWindowOptions(

@@ -13,9 +13,11 @@ import {
   builtinRightPlayerAvatar,
   builtinRoomBackground,
   builtinRoomTitle,
+  builtinS4RoomTitle,
   legacyLeftPlayerAvatar,
   legacyRightPlayerAvatar,
   normalizeRoomDesign,
+  resolveRoomHudTextAppearance,
   roomCanvasSize,
   roomTitleImageElementId
 } from "../../core/room";
@@ -395,9 +397,30 @@ function RoomBroadcastHudView({
     ? getRoomHudAssetUrl(hud.playerBar.rightAvatarPath || builtinRightPlayerAvatar)
     : undefined;
   const playerBarPreset = hud.playerBar.preset ?? "s3-clover-hinge";
+  const showFormat = hud.playerBar.showFormat ?? Boolean(hud.playerBar.boText.trim());
   const scoreFollowsPlayer = playerBarPreset === "player-score";
   const playerBarArtUrl = getRoomPlayerBarArtUrl(playerBarPreset);
-  const baseWidthPercent = playerBarPreset === "classic" || playerBarPreset === "compact" ? 66 : 78;
+  const baseWidthPercent =
+    (playerBarPreset === "s3-clover-hinge" || playerBarPreset === "s4-moon-relic")
+      ? 64
+      : playerBarPreset === "classic" || playerBarPreset === "compact"
+        ? 66
+        : 78;
+  const roleVariables = Object.fromEntries(
+    textBoxes.filter((box) => ["player-left", "player-right", "score-left", "score-right"].includes(box.role))
+      .flatMap((box) => {
+        const appearance = resolveRoomHudTextAppearance(box, playerBarPreset);
+        return [
+          [`--${box.role}-size-ratio`, box.fontSize / (box.role.startsWith("score") ? 118 : 58)],
+          [`--${box.role}-font`, appearance.fontFamily],
+          [`--${box.role}-color`, appearance.color]
+        ];
+      })
+  );
+  const textStyle = (role: RoomTextBox["role"]): CSSProperties => {
+    const box = textBoxes.find((item) => item.role === role);
+    return box ? resolveRoomHudTextAppearance(box, playerBarPreset) : {};
+  };
   const playerBarWidthPercent = Math.min(94, baseWidthPercent * (hud.playerBar.widthScale ?? 1));
 
   return (
@@ -447,6 +470,7 @@ function RoomBroadcastHudView({
         className={[
           "room-player-bar",
           `room-player-bar-preset-${playerBarPreset}`,
+          showFormat ? "" : "room-player-bar-no-format",
           hud.playerBar.visible ? "" : "room-player-bar-hidden",
           hud.playerBar.animation ? "" : "room-player-bar-no-animation"
         ].join(" ")}
@@ -454,13 +478,18 @@ function RoomBroadcastHudView({
         style={
           {
             "--room-player-bar-width": `${playerBarWidthPercent}%`,
-            "--room-player-font-scale": hud.playerBar.textScale ?? 1
+            "--room-player-font-scale": hud.playerBar.textScale ?? 1,
+            ...roleVariables,
+            "--room-vs-size": hud.playerBar.vsFontSize,
+            "--room-format-size": hud.playerBar.formatFontSize
           } as CSSProperties
         }
       >
         {playerBarArtUrl && <img className="room-player-bar-art" src={playerBarArtUrl} alt="" draggable={false} />}
         <RoomPlayerSide
           side="left"
+          nameStyle={textStyle("player-left")}
+          scoreStyle={textStyle("score-left")}
           name={leftName}
           avatarUrl={leftAvatarUrl}
           visible={hud.playerBar.leftVisible}
@@ -468,14 +497,20 @@ function RoomBroadcastHudView({
           scoreVisible={scoreFollowsPlayer && hud.playerBar.scoreVisible}
         />
         <RoomScorePill
+          leftStyle={textStyle("score-left")}
+          rightStyle={textStyle("score-right")}
+          vsFontSize={hud.playerBar.vsFontSize}
+          formatFontSize={hud.playerBar.formatFontSize}
           leftScore={scoreLeft}
           rightScore={scoreRight}
-          boText={hud.playerBar.boText}
+          boText={showFormat ? hud.playerBar.boText : ""}
           scoreFollowsPlayer={scoreFollowsPlayer}
           visible={hud.playerBar.scoreVisible}
         />
         <RoomPlayerSide
           side="right"
+          nameStyle={textStyle("player-right")}
+          scoreStyle={textStyle("score-right")}
           name={rightName}
           avatarUrl={rightAvatarUrl}
           visible={hud.playerBar.rightVisible}
@@ -488,12 +523,17 @@ function RoomBroadcastHudView({
 }
 
 function RoomScorePill({
+  leftStyle, rightStyle, vsFontSize, formatFontSize,
   leftScore,
   rightScore,
   boText,
   scoreFollowsPlayer,
   visible
 }: {
+  leftStyle: CSSProperties;
+  rightStyle: CSSProperties;
+  vsFontSize?: number;
+  formatFontSize?: number;
   leftScore: string;
   rightScore: string;
   boText: string;
@@ -512,26 +552,27 @@ function RoomScorePill({
       {!scoreFollowsPlayer && (
         <span
           className="room-score-value room-score-value-left"
-          style={{ "--room-score-fit": getScoreTextFit(leftScore) } as CSSProperties}
+          style={{ ...leftStyle, "--room-score-fit": getScoreTextFit(leftScore) } as CSSProperties}
         >
           {leftScore}
         </span>
       )}
-      <span className="room-score-separator">VS</span>
+      <span className="room-score-separator" style={hudFontSize(vsFontSize)}>VS</span>
       {!scoreFollowsPlayer && (
         <span
           className="room-score-value room-score-value-right"
-          style={{ "--room-score-fit": getScoreTextFit(rightScore) } as CSSProperties}
+          style={{ ...rightStyle, "--room-score-fit": getScoreTextFit(rightScore) } as CSSProperties}
         >
           {rightScore}
         </span>
       )}
-      <span className="room-score-format">{boText}</span>
+      <span className="room-score-format" style={hudFontSize(formatFontSize)}>{boText}</span>
     </div>
   );
 }
 
 function RoomPlayerSide({
+  nameStyle, scoreStyle,
   side,
   name,
   avatarUrl,
@@ -539,6 +580,8 @@ function RoomPlayerSide({
   score,
   scoreVisible
 }: {
+  nameStyle: CSSProperties;
+  scoreStyle: CSSProperties;
   side: "left" | "right";
   name: string;
   avatarUrl?: string;
@@ -558,23 +601,27 @@ function RoomPlayerSide({
       aria-hidden={visible ? "false" : "true"}
     >
       {side === "left" && avatarUrl && <RoomPlayerAvatar src={avatarUrl} />}
-      {side === "right" && <RoomPlayerSideScore score={score} visible={scoreVisible} />}
-      <span className="room-player-name">{name}</span>
-      {side === "left" && <RoomPlayerSideScore score={score} visible={scoreVisible} />}
+      {side === "right" && <RoomPlayerSideScore score={score} visible={scoreVisible} textStyle={scoreStyle} />}
+      <span className="room-player-name" style={nameStyle}>{name}</span>
+      {side === "left" && <RoomPlayerSideScore score={score} visible={scoreVisible} textStyle={scoreStyle} />}
       {side === "right" && avatarUrl && <RoomPlayerAvatar src={avatarUrl} />}
     </div>
   );
 }
 
-function RoomPlayerSideScore({ score, visible }: { score: string; visible: boolean }) {
+function RoomPlayerSideScore({ score, visible, textStyle }: { score: string; visible: boolean; textStyle: CSSProperties }) {
   return (
     <span
       className={["room-player-side-score", visible ? "" : "room-player-side-score-hidden"].join(" ")}
-      style={{ "--room-score-fit": getScoreTextFit(score) } as CSSProperties}
+      style={{ ...textStyle, "--room-score-fit": getScoreTextFit(score) } as CSSProperties}
     >
       {score}
     </span>
   );
+}
+
+function hudFontSize(size?: number): CSSProperties | undefined {
+  return size === undefined ? undefined : { fontSize: `calc(min(0.052083cqw, 0.092593cqh) * ${size})` };
 }
 
 function getScoreTextFit(score: string): number {
@@ -641,6 +688,9 @@ function getRoomHudAssetUrl(imagePath: string | undefined): string | undefined {
   if (imagePath === legacyRightPlayerAvatar) {
     return `${getApiBase()}/player-avatars/roco-player-bunny-fit.png`;
   }
+  if (imagePath === builtinS4RoomTitle) {
+    return `${getApiBase()}/room-titles/s4-moon-reverie-title.png`;
+  }
   if (imagePath === builtinRoomTitle) {
     return `${getApiBase()}/room-titles/rock-league-title-v1-cutout.png`;
   }
@@ -660,6 +710,9 @@ function getRoomHudAssetUrl(imagePath: string | undefined): string | undefined {
 }
 
 function getRoomPlayerBarArtUrl(preset: RoomPlayerBarPreset): string | undefined {
+  if (preset === "s4-moon-relic") {
+    return `${getApiBase()}/room-player-bars/s4-moon-relic.png`;
+  }
   if (preset === "s3-clover-hinge") {
     return `${getApiBase()}/room-player-bars/s3-clover-hinge-wide.png`;
   }

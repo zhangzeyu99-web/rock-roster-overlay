@@ -7,7 +7,7 @@ import {
   upsertProjectInCollection
 } from "../src/core/projectPresets";
 import { createDefaultRosterProject } from "../src/core/project";
-import { defaultRoomSeasonTitle } from "../src/core/room";
+import { builtinRoomTitle, defaultRoomSeasonTitle } from "../src/core/room";
 
 function project(id: string, name: string): RosterProject {
   return {
@@ -47,6 +47,7 @@ describe("project presets", () => {
     legacy.defaultsVersion = undefined;
     if (legacy.room?.hud?.titleImage) {
       legacy.room.hud.titleImage.visible = true;
+      legacy.room.hud.titleImage.imagePath = builtinRoomTitle;
     }
 
     const migrated = normalizeProject(legacy);

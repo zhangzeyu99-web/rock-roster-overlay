@@ -4,6 +4,7 @@ import type {
   CaptureMode,
   ImportResult,
   LiveRosterState,
+  ObsWindowState,
   ProjectPresetTransferResult,
   RuntimeCacheStatus,
   RosterProject,
@@ -31,6 +32,7 @@ export interface RosterBridge {
   resetHealth: (projectId?: string) => Promise<LiveRosterState>;
   openObsWindow: (mode: CaptureMode) => Promise<void>;
   closeObsWindow: () => Promise<void>;
+  getObsWindowState: () => Promise<ObsWindowState>;
   openControlWindow: () => Promise<void>;
   setControlWindowAlwaysOnTop: (alwaysOnTop: boolean) => Promise<void>;
   focusMainWindow: () => Promise<void>;
@@ -40,6 +42,7 @@ export interface RosterBridge {
   clearRuntimeCache: () => Promise<RuntimeCacheStatus | undefined>;
   revealPath: (filePath: string) => Promise<void>;
   onStateChanged: (callback: () => void) => () => void;
+  onObsWindowStateChanged: (callback: (state: ObsWindowState) => void) => () => void;
   onRuntimeCacheChanged: (callback: (status: RuntimeCacheStatus) => void) => () => void;
 }
 
@@ -59,6 +62,7 @@ const bridge: RosterBridge = {
   resetHealth: (projectId) => ipcRenderer.invoke("live-state:reset-health", projectId),
   openObsWindow: (mode) => ipcRenderer.invoke("obs-window:open", mode),
   closeObsWindow: () => ipcRenderer.invoke("obs-window:close"),
+  getObsWindowState: () => ipcRenderer.invoke("obs-window:get-state"),
   openControlWindow: () => ipcRenderer.invoke("control-window:open"),
   setControlWindowAlwaysOnTop: (alwaysOnTop) =>
     ipcRenderer.invoke("control-window:set-always-on-top", alwaysOnTop),
@@ -72,6 +76,11 @@ const bridge: RosterBridge = {
     const listener = () => callback();
     ipcRenderer.on("state-changed", listener);
     return () => ipcRenderer.removeListener("state-changed", listener);
+  },
+  onObsWindowStateChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: ObsWindowState) => callback(state);
+    ipcRenderer.on("obs-window-state-changed", listener);
+    return () => ipcRenderer.removeListener("obs-window-state-changed", listener);
   },
   onRuntimeCacheChanged: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, status: RuntimeCacheStatus) => callback(status);

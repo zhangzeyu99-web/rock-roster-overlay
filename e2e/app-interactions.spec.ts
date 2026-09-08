@@ -361,6 +361,10 @@ test("room text editing stays stable while dragging, resizing, and changing styl
     .poll(() => titleBox.evaluate((node) => getComputedStyle(node.querySelector("span") as HTMLElement).textShadow))
     .not.toContain("rgb(255, 255, 255)");
 
+  const backgroundControls = page.locator(".room-control-group").filter({
+    has: page.locator(".room-control-head strong", { hasText: "背景" })
+  });
+  await backgroundControls.locator("select").first().selectOption("show");
   await page.getByTestId("room-background-advanced").locator("summary").click();
   await page.getByTestId("room-background-advanced").locator('label.field-row:has-text("四周虚化") input[type="range"]').evaluate((node) => {
     const input = node as HTMLInputElement;
@@ -432,7 +436,7 @@ test("room title image can be selected, moved, and resized from the preview", as
   await page.locator(".app-nav").getByRole("button", { name: "装修", exact: true }).click();
 
   const titleImage = page.locator(".room-broadcast-title");
-  const titleImageToggle = page.locator(".room-hud-title-actions").first().locator("button").nth(1);
+  const titleImageToggle = page.getByTestId("room-title-mode").getByRole("button", { name: "美术字标", exact: true });
   await expect(titleImage).toBeHidden();
   await titleImageToggle.click();
   await expect(titleImage).toBeVisible();
@@ -518,7 +522,7 @@ test("hidden room title image reveals the editable title text style controls", a
 
   const titleImage = page.locator(".room-broadcast-title");
   const titleText = page.locator(".room-text-title");
-  const titleImageToggle = page.locator(".room-hud-title-actions").first().locator("button").nth(1);
+  const titleImageToggle = page.getByTestId("room-title-mode").getByRole("button", { name: "美术字标", exact: true });
 
   await expect(titleImage).toBeHidden();
   await expect(titleText).toBeVisible();
@@ -576,7 +580,7 @@ test("hidden room title image reveals the editable title text style controls", a
   await expect(page.getByTestId("room-event-style")).toHaveCount(0);
   await expect(page.getByTestId("room-selected-text-style")).toHaveCount(0);
 
-  await titleImageToggle.click();
+  await page.getByRole("button", { name: "系统字标（可编辑）", exact: true }).click();
   await expect(titleImage).toBeHidden();
   await expect(titleText).toBeVisible();
   await expect(page.getByTestId("room-selected-text-style")).toBeVisible();
@@ -629,9 +633,9 @@ test("room mode presets switch between new and v3.2.5 layouts without exposing f
   await page.goto("/");
   await page.locator(".app-nav button").nth(1).click();
 
-  const modeButtons = page.locator(".room-design-section .room-control-group").first().locator(".room-action-row button");
+  const modeButtons = page.getByTestId("room-layout-mode").locator(".room-action-row button");
   await expect(modeButtons).toHaveCount(2);
-  await expect(page.locator(".room-design-section .room-control-group").first()).not.toContainText("自由模式");
+  await expect(page.getByTestId("room-layout-mode")).not.toContainText("自由模式");
   await expect(page.locator(".preview-board [data-layout-mode]")).toHaveAttribute("data-layout-mode", "curved");
 
   await modeButtons.nth(1).click();
@@ -639,9 +643,29 @@ test("room mode presets switch between new and v3.2.5 layouts without exposing f
   await expect
     .poll(() => page.evaluate(() => (window as any).roster.getState().then((state: any) => state.project.style.teamLayout.mode)))
     .toBe("vertical");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as any).roster.getState().then((state: any) => ({
+          imageScale: state.project.style.imageScale,
+          cardPlateScale: state.project.style.cardPlateScale
+        }))
+      )
+    )
+    .toEqual({ imageScale: 1.02, cardPlateScale: 1.08 });
 
   await modeButtons.first().click();
   await expect(page.locator(".preview-board [data-layout-mode]")).toHaveAttribute("data-layout-mode", "curved");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as any).roster.getState().then((state: any) => ({
+          imageScale: state.project.style.imageScale,
+          cardPlateScale: state.project.style.cardPlateScale
+        }))
+      )
+    )
+    .toEqual({ imageScale: 0.96, cardPlateScale: 1.02 });
 });
 
 test("room player avatar slot hides by default and supports picker or import", async ({ page }) => {
@@ -876,6 +900,7 @@ test("room scoreboard style select switches enabled presets in preview", async (
   const presetSelect = page.locator(".room-hud-controls select").first();
   const playerBar = page.locator(".preview-board .room-player-bar");
   const variants = [
+    ["s4-moon-relic", "room-player-bar-preset-s4-moon-relic"],
     ["s3-storybook", "room-player-bar-preset-s3-storybook"],
     ["s3-prism-bookmark", "room-player-bar-preset-s3-prism-bookmark"],
     ["s3-clover-hinge", "room-player-bar-preset-s3-clover-hinge"],
@@ -885,11 +910,12 @@ test("room scoreboard style select switches enabled presets in preview", async (
   ] as const;
 
   await expect(presetSelect).toHaveValue("s3-clover-hinge");
-  await expect(presetSelect.locator("option")).toHaveCount(6);
+  await expect(presetSelect.locator("option")).toHaveCount(7);
   const presetOptions = await presetSelect.locator("option").evaluateAll((options) =>
     options.map((option) => (option as HTMLOptionElement).value)
   );
   expect(presetOptions).toEqual([
+    "s4-moon-relic",
     "s3-clover-hinge",
     "s3-storybook",
     "s3-prism-bookmark",
@@ -963,10 +989,13 @@ test("preview mode and resolution controls drive OBS and current export mode", a
       },
       style: {
         resolution: { width: 1920, height: 1080 },
-        cardGap: 14,
-        imageScale: 1,
-        cardBackground: "transparent",
-        showElementIcon: true
+        cardGap: 8,
+        imageScale: 1.02,
+        cardBackground: "cloud",
+        cardPlateScale: 1.08,
+        cardPlateYOffset: 22,
+        showElementIcon: true,
+        teamLayout: { mode: "curved", centerGap: 1540, verticalOffset: 0 }
       },
       assetLibrary: { showShiny: false }
     };
@@ -1005,17 +1034,134 @@ test("preview mode and resolution controls drive OBS and current export mode", a
 
   await page.goto("/");
   await page.locator(".preview-switch button").nth(0).click();
+  await expect(page.getByTestId("roster-card").first().locator(".pet-art")).toBeVisible();
+  await expect(page.getByTestId("roster-card").first().locator(".pet-card-plate-cloud")).toBeVisible();
+  const geometry1080p = await page.getByTestId("roster-card").first().evaluate((card) => {
+    const pet = card.querySelector(".pet-art")?.getBoundingClientRect();
+    const plate = card.querySelector(".pet-card-plate-cloud")?.getBoundingClientRect();
+    const scene = card.closest(".overlay-scene");
+    const style = scene ? getComputedStyle(scene) : undefined;
+    return {
+      ratio: pet && plate ? pet.width / plate.width : 0,
+      imageScale: style?.getPropertyValue("--image-scale").trim() ?? ""
+    };
+  });
+  await page.screenshot({ path: "output/playwright/resolution-preset-1080p.png", animations: "disabled" });
   await page.locator(".resolution-entry").click();
   await page.locator(".resolution-preset-row").getByRole("button", { name: "2560 x 1440" }).click();
 
-  await expect(page.locator(".top-obs-url input")).toHaveValue(/mode=left/);
   await expect(page.locator(".resolution-entry")).toContainText("2560 x 1440");
   await expect(page.locator(".preview-title span")).not.toContainText("2560");
   await expect(page.getByTestId("roster-card")).toHaveCount(6);
+  const geometry1440p = await page.getByTestId("roster-card").first().evaluate((card) => {
+    const pet = card.querySelector(".pet-art")?.getBoundingClientRect();
+    const plate = card.querySelector(".pet-card-plate-cloud")?.getBoundingClientRect();
+    const scene = card.closest(".overlay-scene");
+    const style = scene ? getComputedStyle(scene) : undefined;
+    return {
+      ratio: pet && plate ? pet.width / plate.width : 0,
+      imageScale: style?.getPropertyValue("--image-scale").trim() ?? ""
+    };
+  });
+  await page.screenshot({ path: "output/playwright/resolution-preset-1440p.png", animations: "disabled" });
+  expect(geometry1080p.ratio).toBeGreaterThan(0);
+  expect(geometry1440p.imageScale).toBe(geometry1080p.imageScale);
+  expect(Math.abs(geometry1440p.ratio / geometry1080p.ratio - 1)).toBeLessThan(0.04);
 
-  await page.locator(".top-actions .primary-button").click();
+  await page.locator(".app-nav").getByRole("button", { name: "直播", exact: true }).click();
+  await page.getByRole("button", { name: "导出当前 PNG" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__exportModes as string[])).toContainEqual("left");
   await expect(page.locator(".top-export-feedback")).toContainText("left.png");
+});
+
+test("combined and room previews can hide either team without affecting single-team views", async ({ page }) => {
+  await page.addInitScript(() => {
+    const slots = Array.from({ length: 6 }, (_, index) => ({ name: `Pet ${index + 1}` }));
+    let currentProject = {
+      id: "default",
+      name: "team-visibility-test",
+      teams: {
+        left: { label: "Left", slots },
+        right: { label: "Right", slots }
+      },
+      style: {
+        resolution: { width: 1920, height: 1080 },
+        cardGap: 8,
+        imageScale: 1.02,
+        cardBackground: "cloud",
+        showElementIcon: true
+      },
+      assetLibrary: { showShiny: false }
+    };
+    (window as any).roster = {
+      getState: async () => ({
+        project: currentProject,
+        projects: [currentProject],
+        activeProjectId: currentProject.id,
+        assets: [],
+        dataDir: "C:/tmp/rock-roster-test",
+        exportDir: "C:/tmp/rock-roster-test/exports",
+        serverUrl: window.location.origin
+      }),
+      saveProject: async (nextProject: typeof currentProject) => {
+        currentProject = nextProject;
+        return nextProject;
+      },
+      activateProject: async () => currentProject,
+      onStateChanged: () => () => undefined,
+      importAssets: async () => undefined,
+      importBackground: async () => undefined,
+      exportPng: async () => "C:/tmp/team-overlay.png",
+      openObsWindow: async () => undefined,
+      closeObsWindow: async () => undefined,
+      revealPath: async () => undefined
+    };
+  });
+
+  await page.goto("/");
+  const hideLeft = page.getByRole("checkbox", { name: "隐藏左队" });
+  const hideRight = page.getByRole("checkbox", { name: "隐藏右队" });
+  await expect(hideLeft).toBeVisible();
+  await expect(hideRight).toBeVisible();
+  await expect(hideLeft).not.toBeChecked();
+  await expect(hideRight).not.toBeChecked();
+  await expect(page.getByTestId("team-left")).toHaveCount(1);
+  await expect(page.getByTestId("team-right")).toHaveCount(1);
+
+  await page.setViewportSize({ width: 1180, height: 760 });
+  await expect(page.locator(".preview-team-visibility")).toBeVisible();
+  const compactControls = await page.locator(".preview-control-stack > *").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    })
+  );
+  for (let first = 0; first < compactControls.length; first += 1) {
+    for (let second = first + 1; second < compactControls.length; second += 1) {
+      const a = compactControls[first];
+      const b = compactControls[second];
+      const overlaps = a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+      expect(overlaps).toBe(false);
+    }
+  }
+
+  await hideLeft.check();
+  await expect(page.getByTestId("team-left")).toHaveCount(0);
+  await expect(page.getByTestId("team-right")).toHaveCount(1);
+  await page.screenshot({ path: "output/playwright/room-hide-left-team.png", animations: "disabled" });
+
+  await page.locator(".preview-switch").getByRole("button", { name: "双方" }).click();
+  await expect(hideLeft).toBeChecked();
+  await expect(page.getByTestId("team-left")).toHaveCount(0);
+  await expect(page.getByTestId("team-right")).toHaveCount(1);
+  await hideRight.check();
+  await expect(page.getByTestId("team-right")).toHaveCount(0);
+
+  await page.locator(".preview-switch").getByRole("button", { name: "左队" }).click();
+  await expect(page.locator(".preview-team-visibility")).toHaveCount(0);
+  await expect(page.getByTestId("team-left")).toHaveCount(1);
+  await page.locator(".preview-switch").getByRole("button", { name: "右队" }).click();
+  await expect(page.getByTestId("team-right")).toHaveCount(1);
 });
 
 test("unfinished beta tools stay hidden from the main workspace", async ({ page }) => {
@@ -1676,7 +1822,19 @@ test("live workflow guides the full streaming path and keeps critical actions re
     (window as any).__copiedText = "";
     (window as any).__exportModes = [];
     (window as any).__windowModes = [];
+    (window as any).__closedWindowCount = 0;
     (window as any).__revealedPaths = [];
+    let obsWindowState = { open: false } as { open: boolean; mode?: string };
+    const obsWindowListeners = new Set<(state: { open: boolean; mode?: string }) => void>();
+    const publishObsWindowState = () => {
+      for (const listener of obsWindowListeners) {
+        listener(obsWindowState);
+      }
+    };
+    (window as any).__closeObsWindowExternally = () => {
+      obsWindowState = { open: false };
+      publishObsWindowState();
+    };
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
@@ -1705,8 +1863,19 @@ test("live workflow guides the full streaming path and keeps critical actions re
       },
       openObsWindow: async (mode: string) => {
         (window as any).__windowModes.push(mode);
+        obsWindowState = { open: true, mode };
+        publishObsWindowState();
       },
-      closeObsWindow: async () => undefined,
+      closeObsWindow: async () => {
+        (window as any).__closedWindowCount += 1;
+        obsWindowState = { open: false };
+        publishObsWindowState();
+      },
+      getObsWindowState: async () => obsWindowState,
+      onObsWindowStateChanged: (callback: (state: { open: boolean; mode?: string }) => void) => {
+        obsWindowListeners.add(callback);
+        return () => obsWindowListeners.delete(callback);
+      },
       revealPath: async (filePath: string) => {
         (window as any).__revealedPaths.push(filePath);
       }
@@ -1714,15 +1883,34 @@ test("live workflow guides the full streaming path and keeps critical actions re
   });
 
   await page.goto("/");
+  await expect(page.locator(".top-obs-url")).toHaveCount(0);
+  await expect(page.locator(".top-actions > .primary-button")).toHaveCount(0);
   const nav = page.locator(".app-nav");
   await nav.getByRole("button", { name: "直播", exact: true }).click();
-  await expect(page.locator(".live-subsection").first()).toContainText("当前输出");
+  await expect(page.locator(".live-subsection").first()).toContainText("当前采集");
   await expect(page.locator(".live-readiness-grid")).toContainText("同步：实时");
   await expect(page.locator(".live-readiness-grid")).toContainText("素材：完整");
+  await expect(page.getByTestId("current-capture-toggle")).toHaveText("打开直播间采集");
+  await page.getByTestId("current-capture-toggle").click();
+  await expect(page.getByTestId("current-capture-toggle")).toHaveText("关闭采集窗口");
+  await page.evaluate(() => (window as any).__closeObsWindowExternally());
+  await expect(page.getByTestId("current-capture-toggle")).toHaveText("打开直播间采集");
+  await page.getByTestId("current-capture-toggle").click();
+  await expect(page.getByTestId("current-capture-toggle")).toHaveText("关闭采集窗口");
+  await page.getByTestId("current-capture-toggle").click();
+  await expect.poll(() => page.evaluate(() => (window as any).__closedWindowCount as number)).toBe(1);
+  await expect(page.getByTestId("current-capture-toggle")).toHaveText("打开直播间采集");
   await expect(page.getByTestId("live-all-obs")).not.toHaveAttribute("open", "");
+  await expect(page.getByTestId("live-all-obs").locator("summary")).toContainText("其他采集源");
+  await expect(page.getByTestId("live-more-export").locator("summary")).toContainText("批量 PNG");
+  await expect(page.getByTestId("live-window-settings").locator("summary")).toContainText("单队窗口设置");
+  await page.screenshot({ path: "output/playwright/live-workflow-3.5.4.png", animations: "disabled" });
   await page.getByTestId("live-all-obs").locator("summary").click();
-  await expect(page.locator(".obs-mode-card", { hasText: "左队" })).toContainText("尺寸随当前输出自动适配");
-  await expect(page.locator(".obs-mode-card", { hasText: "直播间" })).toContainText("尺寸随当前输出自动适配");
+  await expect(page.locator(".obs-mode-card", { hasText: "左队" })).toContainText(
+    "默认随输出分辨率适配，可在单队窗口设置中覆盖"
+  );
+  await expect(page.locator(".obs-mode-card", { hasText: "直播间" })).toHaveCount(0);
+  await page.screenshot({ path: "output/playwright/live-other-sources-3.5.4.png", animations: "disabled" });
 
   await nav.getByRole("button", { name: "阵容", exact: true }).click();
   await expect(page.locator(".section-title", { hasText: "阵容设置" })).toBeVisible();

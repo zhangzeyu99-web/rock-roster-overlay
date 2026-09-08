@@ -13,6 +13,7 @@ import { defaultFontFamily, genshinFontFamily } from "./fonts";
 export const roomCanvasSize = { width: 1920, height: 1080 };
 export const builtinRoomBackground = "builtin:world-room-v3";
 export const builtinRoomTitle = "builtin:rock-league-title-v1";
+export const builtinS4RoomTitle = "builtin:s4-moon-reverie-title";
 export const defaultRoomSeasonTitle = "S3·铅字幻梦";
 export const builtinLeftPlayerAvatar = "assets/avatars/001-dimo-avatar.png";
 export const builtinRightPlayerAvatar = "assets/avatars/010-shuiling-avatar.png";
@@ -49,6 +50,20 @@ const competitionTitleLeadStyle = {
   fontFamily: defaultFontFamily,
   fontSize: 72,
   fontWeight: 930
+};
+
+export const s4MoonTitleStyle: Partial<RoomTextBox> = {
+  color: "#e7f4f5",
+  fillStyle: "s4-moonlight",
+  strokeEnabled: true,
+  strokeColor: "#234657",
+  strokeWidth: 1,
+  shadowColor: "rgba(13, 36, 51, 0.55)",
+  background: "transparent",
+  backgroundOpacity: 0,
+  borderColor: "transparent",
+  borderWidth: 0,
+  radius: 0
 };
 
 const competitionTitleGoldStyle = {
@@ -160,6 +175,7 @@ export interface RoomTextStylePreset {
 }
 
 export const roomTextStylePresets: RoomTextStylePreset[] = [
+  { id: "s4-moonlight", name: "月涌狂想", roles: ["title"], style: s4MoonTitleStyle },
   {
     id: "s3-lead-prism",
     name: "铅绘幻梦",
@@ -220,6 +236,34 @@ export function getRoomTextStylePresetsForRole(role: RoomTextBox["role"]) {
   return roomTextStylePresets.filter((preset) => preset.roles.includes(role));
 }
 
+export function resolveRoomHudTextAppearance(
+  box: RoomTextBox,
+  preset: RoomPlayerBarStyle["preset"]
+): Pick<RoomTextBox, "fontFamily" | "color"> {
+  if (!box.role.startsWith("player-") && !box.role.startsWith("score-")) {
+    return { fontFamily: box.fontFamily, color: box.color };
+  }
+  const score = box.role.startsWith("score-");
+  const s4 = preset === "s4-moon-relic";
+  const s3 = preset.startsWith("s3-");
+  const legacyColor = box.role.endsWith("left") ? "#e42732" : "#2458e8";
+  const themeFont = score
+    ? s4 ? '"Arial Black", "MiSans", sans-serif'
+      : s3 ? '"Arial Black", "Arial", "MiSans", sans-serif'
+        : '"Arial Black", "Arial", "MiSans", "Microsoft YaHei UI", sans-serif'
+    : s4 ? '"MiSans", sans-serif' : '"MiSans", "Microsoft YaHei UI", sans-serif';
+  const themeColor = score
+    ? s4 ? "#fff7df"
+      : s3 && preset !== "s3-clover-hinge" ? (box.role.endsWith("left") ? "#c83c68" : "#2f78bd")
+        : "#ffffff"
+    : s4 ? "#214759" : s3 ? "#30451d"
+      : preset === "compact" ? "#20242c" : preset === "player-score" ? "#17191f" : "#201a14";
+  return {
+    fontFamily: box.hudFontOverride || box.fontFamily !== genshinFontFamily ? box.fontFamily : themeFont,
+    color: box.hudColorOverride || box.color.toLowerCase() !== legacyColor ? box.color : themeColor
+  };
+}
+
 export function createDefaultRoomDesign(): RoomDesign {
   return {
     mode: "competition",
@@ -232,7 +276,7 @@ export function createDefaultRoomDesign(): RoomDesign {
 
 export function createDefaultRoomBackground(): RoomBackgroundStyle {
   return {
-    visible: true,
+    visible: false,
     imagePath: builtinRoomBackground,
     fit: "cover",
     opacity: 1,
@@ -347,12 +391,13 @@ function normalizeRoomPlayerBar(
   input: Partial<RoomPlayerBarStyle> | undefined,
   fallback: RoomPlayerBarStyle
 ): RoomPlayerBarStyle {
-  const boText = typeof input?.boText === "string" && input.boText.trim() ? input.boText.trim() : fallback.boText;
+  const boText = typeof input?.boText === "string" ? input.boText.trim() : fallback.boText;
   const inputPreset = (input as { preset?: unknown } | undefined)?.preset;
   const preset =
     inputPreset === "split-panel" || inputPreset === "score-left" || inputPreset === "score-right"
       ? "classic"
-      : inputPreset === "s3-storybook" ||
+      : inputPreset === "s4-moon-relic" ||
+          inputPreset === "s3-storybook" ||
           inputPreset === "s3-prism-bookmark" ||
           inputPreset === "s3-clover-hinge" ||
           inputPreset === "compact" ||
@@ -367,6 +412,9 @@ function normalizeRoomPlayerBar(
     scoreVisible: typeof input?.scoreVisible === "boolean" ? input.scoreVisible : fallback.scoreVisible,
     preset,
     boText,
+    showFormat: typeof input?.showFormat === "boolean" ? input.showFormat : undefined,
+    vsFontSize: typeof input?.vsFontSize === "number" ? clampNumber(input.vsFontSize, 12, 72, 32) : undefined,
+    formatFontSize: typeof input?.formatFontSize === "number" ? clampNumber(input.formatFontSize, 10, 56, 23) : undefined,
     widthScale: clampNumber(input?.widthScale, 0.7, 1.2, fallback.widthScale ?? 1),
     textScale: clampNumber(input?.textScale, 0.7, 1.8, fallback.textScale ?? 1),
     leftAvatarPath:
@@ -399,7 +447,10 @@ export function createCustomRoomTextBox(index = 0): RoomTextBox {
 }
 
 export function normalizeRoomTextBox(input: Partial<RoomTextBox>, index = 0): RoomTextBox {
-  const fallback = createCompetitionTextBoxes()[index] ?? createCustomRoomTextBox(index);
+  const defaults = createCompetitionTextBoxes();
+  const fallback = input.role === "custom"
+    ? createCustomRoomTextBox(index)
+    : defaults.find((box) => box.role === input.role) ?? defaults[index] ?? createCustomRoomTextBox(index);
   const width = clampNumber(input.width, 80, roomCanvasSize.width, fallback.width);
   const height = clampNumber(input.height, 34, roomCanvasSize.height, fallback.height);
   const background = normalizeRoomTextBackground(input.background, fallback.background);
@@ -430,8 +481,10 @@ export function normalizeRoomTextBox(input: Partial<RoomTextBox>, index = 0): Ro
     fontSize: clampNumber(input.fontSize, 12, 120, fallback.fontSize),
     fontWeight: clampNumber(input.fontWeight, 300, 1000, fallback.fontWeight),
     color: input.color || fallback.color,
+    ...(input.hudFontOverride === true ? { hudFontOverride: true } : {}),
+    ...(input.hudColorOverride === true ? { hudColorOverride: true } : {}),
     fillStyle:
-      input.fillStyle === "s3-lead-prism" || input.fillStyle === "solid"
+      input.fillStyle === "s4-moonlight" || input.fillStyle === "s3-lead-prism" || input.fillStyle === "solid"
         ? input.fillStyle
         : fallback.fillStyle ?? "solid",
     strokeEnabled,
@@ -515,7 +568,7 @@ function createCompetitionTextBoxes(text?: {
     {
       id: "room-score-left",
       role: "score-left",
-      text: text?.scoreLeft ?? "999",
+      text: text?.scoreLeft ?? "0",
       x: 206,
       y: 78,
       width: 260,
@@ -526,7 +579,7 @@ function createCompetitionTextBoxes(text?: {
     {
       id: "room-score-right",
       role: "score-right",
-      text: text?.scoreRight ?? "1",
+      text: text?.scoreRight ?? "0",
       x: 1454,
       y: 78,
       width: 260,
@@ -554,7 +607,8 @@ function ensureCompetitionTextBoxes(textBoxes: RoomTextBox[]): RoomTextBox[] {
             id: existing.id || fallback.id,
             role: fallback.role,
             text: existing.text ?? fallback.text,
-            ...(isDefaultCompetitionTextVisual(existing) ||
+            ...((shouldUpgradeLayout && existing.color.toLowerCase() === "#ffffff") ||
+            isDefaultCompetitionTextVisual(existing) ||
             isLegacyCompetitionTextVisual(existing, fallback.role)
               ? getCompetitionTextVisualPatch(fallback.role)
               : {}),
@@ -578,7 +632,9 @@ function ensureCompetitionTextBoxes(textBoxes: RoomTextBox[]): RoomTextBox[] {
                   fontSize: fallback.fontSize,
                   fontWeight: fallback.fontWeight
                 }
-              : {})
+              : {}),
+            ...(existing.hudFontOverride ? { fontFamily: existing.fontFamily } : {}),
+            ...(existing.hudColorOverride ? { color: existing.color } : {})
           }
         : fallback,
       index
@@ -632,6 +688,7 @@ function getCompetitionTextVisualPatch(role: RoomTextBox["role"]): Partial<RoomT
 }
 
 function isDefaultCompetitionTextVisual(box: RoomTextBox): boolean {
+  if (box.fillStyle === "solid") return false;
   return (
     box.color.trim().toLowerCase() === "#ffffff" &&
     box.background.trim().toLowerCase() === "transparent" &&
@@ -646,9 +703,9 @@ function isLegacyCompetitionTextVisual(box: RoomTextBox, role: RoomTextBox["role
     role === "title"
       ? ["#ffd84a", "#ffdc4a"]
       : role === "player-left" || role === "score-left"
-        ? ["#e73735", "#de2f33", "#e42732"]
+        ? ["#e73735", "#de2f33"]
         : role === "player-right" || role === "score-right"
-          ? ["#275ee8", "#2458e8"]
+          ? ["#275ee8"]
           : [];
   return (
     legacyColors.includes(color) &&

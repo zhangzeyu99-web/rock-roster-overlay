@@ -33,6 +33,7 @@ function sampleProject(): RosterProject {
     centerGap: 1380,
     verticalOffset: -25
   };
+  project.style.teamVisibility = { left: false, right: true };
   project.room = {
     mode: "competition",
     background: {
@@ -67,6 +68,7 @@ describe("project preset transfer", () => {
       centerGap: 1380,
       verticalOffset: -25
     });
+    expect(preset.project.style.teamVisibility).toEqual({ left: false, right: true });
     expect(preset.project.floatingControl).toEqual({
       glassStrength: 35,
       uiScale: 82,
@@ -98,6 +100,7 @@ describe("project preset transfer", () => {
       centerGap: 1380,
       verticalOffset: -25
     });
+    expect(imported.style.teamVisibility).toEqual({ left: false, right: true });
     expect(imported.floatingControl).toEqual({
       glassStrength: 35,
       uiScale: 82,

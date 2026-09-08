@@ -34,7 +34,7 @@ describe("room design v3", () => {
     const resolved = resolveRosterProject(legacyProject, []);
 
     expect(resolved.room?.mode).toBe("competition");
-    expect(resolved.room?.background.visible).toBe(true);
+    expect(resolved.room?.background.visible).toBe(false);
     expect(resolved.room?.background.imagePath).toBe(builtinRoomBackground);
     expect(resolved.room?.guides).toEqual({ visible: false, mode: "safe" });
     expect(resolved.room?.textBoxes.map((box) => box.role)).toEqual([
@@ -321,7 +321,7 @@ describe("room design v3", () => {
     expect(customized.textBoxes.find((box) => box.role === "title")).toMatchObject({ color: "#f4c6d8" });
   });
 
-  it("upgrades old default white competition text colors on the current layout", () => {
+  it("preserves explicit white solid text while upgrading the old textured title", () => {
     const currentDefault = normalizeRoomDesign();
     const room = normalizeRoomDesign({
       mode: "competition",
@@ -333,21 +333,22 @@ describe("room design v3", () => {
     const byRole = new Map(room.textBoxes.map((box) => [box.role, box]));
 
     expect(byRole.get("title")).toMatchObject({ color: "#dbea9b", fillStyle: "s3-lead-prism" });
-    expect(byRole.get("player-left")).toMatchObject({ color: "#e42732" });
-    expect(byRole.get("player-right")).toMatchObject({ color: "#2458e8" });
-    expect(byRole.get("score-left")).toMatchObject({ color: "#e42732" });
-    expect(byRole.get("score-right")).toMatchObject({ color: "#2458e8" });
+    expect(byRole.get("player-left")).toMatchObject({ color: "#ffffff" });
+    expect(byRole.get("player-right")).toMatchObject({ color: "#ffffff" });
+    expect(byRole.get("score-left")).toMatchObject({ color: "#ffffff" });
+    expect(byRole.get("score-right")).toMatchObject({ color: "#ffffff" });
   });
 
   it("offers role-specific typography presets for title and red/blue players", () => {
     expect(getRoomTextStylePresetsForRole("title").map((preset) => preset.id)).toEqual([
+      "s4-moonlight",
       "s3-lead-prism",
       "league-gold",
       "league-white",
       "league-blue",
       "league-red"
     ]);
-    expect(getRoomTextStylePresetsForRole("title")[0]).toMatchObject({
+    expect(getRoomTextStylePresetsForRole("title").find((preset) => preset.id === "s3-lead-prism")).toMatchObject({
       id: "s3-lead-prism",
       style: {
         color: "#dbea9b",
@@ -373,7 +374,7 @@ describe("room design v3", () => {
       strokeColor: "#527f57",
       strokeWidth: 1
     });
-    expect(getRoomTextStylePresetsForRole("title")[1]).toMatchObject({
+    expect(getRoomTextStylePresetsForRole("title").find((preset) => preset.id === "league-gold")).toMatchObject({
       id: "league-gold",
       style: {
         color: "#ffdc4a",

@@ -15,7 +15,7 @@ import { detectDuplicateNames, validateAssetFileName } from "../src/core/assets"
 import { normalizePetName } from "../src/core/matching";
 import { createDefaultRosterProject } from "../src/core/project";
 import { createProjectPresetFile, parseProjectPresetFile } from "../src/core/projectPresetTransfer";
-import { builtinLeftPlayerAvatar, builtinRightPlayerAvatar, builtinRoomTitle } from "../src/core/room";
+import { builtinLeftPlayerAvatar, builtinRightPlayerAvatar, builtinRoomTitle, builtinS4RoomTitle } from "../src/core/room";
 import {
   activateProjectInCollection,
   getActiveProject,
@@ -439,6 +439,9 @@ async function resolveHudImageFilePath(imagePath: string, publicRoot: string): P
   }
   if (imagePath === builtinRightPlayerAvatar) {
     return path.join(publicRoot, "player-avatars", "roco-player-bunny-fit.png");
+  }
+  if (imagePath === builtinS4RoomTitle) {
+    return path.join(publicRoot, "room-titles", "s4-moon-reverie-title.png");
   }
   if (imagePath === builtinRoomTitle) {
     return path.join(publicRoot, "room-titles", "rock-league-title-v1-cutout.png");

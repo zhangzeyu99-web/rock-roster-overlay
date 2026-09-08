@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   formatResolution,
   getCaptureCanvasSize,
+  getOutputResolutionScale,
+  getRoomLayoutPresetStyleDefaults,
+  getResolutionPresetStyleDefaults,
   getResolutionPresetId,
+  getRosterVisualScale,
   getSingleTeamOutputWidth,
   outputResolutionPresets
 } from "../src/core/captureGeometry";
@@ -36,5 +40,46 @@ describe("capture geometry", () => {
     expect(getResolutionPresetId({ width: 2560, height: 1440 })).toBe("1440p");
     expect(getResolutionPresetId({ width: 2400, height: 1350 })).toBe("custom");
     expect(formatResolution({ width: 560, height: 1440 })).toBe("560 x 1440");
+  });
+
+  it("caps the 1440p roster at a restrained optical scale", () => {
+    expect(getRosterVisualScale({ width: 1920, height: 1080 })).toBe(1);
+    expect(getRosterVisualScale({ width: 2560, height: 1440 })).toBe(1.1);
+    expect(getRosterVisualScale({ width: 2560, height: 1440 })).toBeLessThan(
+      getOutputResolutionScale({ width: 2560, height: 1440 })
+    );
+  });
+
+  it("keeps the pet-to-cloud-plate ratio consistent across built-in resolutions", () => {
+    const preset1080p = getResolutionPresetStyleDefaults({ width: 1920, height: 1080 });
+    const preset1440p = getResolutionPresetStyleDefaults({ width: 2560, height: 1440 });
+
+    expect(preset1440p.imageScale).toBe(preset1080p.imageScale);
+    expect(preset1080p.imageScale).toBe(0.96);
+    expect(preset1080p.cardPlateScale).toBe(1.02);
+    expect(preset1440p.cardPlateScale).toBe(preset1080p.cardPlateScale);
+    expect(preset1080p.cardPlateYOffset).toBe(22);
+    expect(preset1440p.cardPlateYOffset).toBe(preset1080p.cardPlateYOffset);
+  });
+
+  it("slightly reduces the curved room preset without changing the v3.2.5 vertical preset", () => {
+    const curved1080p = getRoomLayoutPresetStyleDefaults({ width: 1920, height: 1080 }, "curved");
+    const curved1440p = getRoomLayoutPresetStyleDefaults({ width: 2560, height: 1440 }, "curved");
+    const vertical1080p = getRoomLayoutPresetStyleDefaults({ width: 1920, height: 1080 }, "vertical");
+
+    expect(curved1080p.imageScale).toBe(0.96);
+    expect(curved1080p.cardPlateScale).toBe(1.02);
+    expect(curved1440p.imageScale).toBe(curved1080p.imageScale);
+    expect(curved1440p.cardPlateScale).toBe(curved1080p.cardPlateScale);
+    expect(vertical1080p.imageScale).toBe(1.02);
+    expect(vertical1080p.cardPlateScale).toBe(1.08);
+  });
+});
+
+
+describe("S4 separated roster presets", () => {
+  it.each(["curved", "vertical"] as const)("uses intentional size and spacing at both resolutions for %s", (mode) => {
+    expect(getRoomLayoutPresetStyleDefaults({ width: 1920, height: 1080 }, mode, "s4")).toMatchObject({ cardGap: 14, imageScale: 0.9, cardPlateScale: 0.96, cardPlateYOffset: 0, teamLayout: { mode } });
+    expect(getRoomLayoutPresetStyleDefaults({ width: 2560, height: 1440 }, mode, "s4")).toMatchObject({ cardGap: 12, imageScale: 0.94, cardPlateScale: 0.96, cardPlateYOffset: 0, teamLayout: { mode } });
   });
 });

@@ -20,13 +20,14 @@ import {
 import { findPetAsset } from "./matching";
 import { normalizeNameLabelStyle } from "./nameLabel";
 import { normalizeRoomDesign } from "./room";
-import { getResolutionPresetStyleDefaults } from "./captureGeometry";
+import { applySeasonTheme } from "./season";
+import { getResolutionPresetStyleDefaults, getRoomLayoutPresetStyleDefaults } from "./captureGeometry";
 
 export const teamSides: TeamSide[] = ["left", "right"];
 export const FLOATING_GLASS_STRENGTH_MAX = 140;
 
 export function createDefaultRosterProject(): RosterProject {
-  return {
+  return applySeasonTheme({
     id: "default",
     name: "默认项目",
     defaultsVersion: 1,
@@ -40,11 +41,11 @@ export function createDefaultRosterProject(): RosterProject {
         slots: Array.from({ length: 6 }, () => ({ name: "", defeated: false }))
       }
     },
-    style: normalizeRosterStyle(undefined),
+    style: normalizeRosterStyle({ cloudTheme: "s4" }),
     room: normalizeRoomDesign(undefined),
     assetLibrary: normalizeAssetLibrarySettings(undefined),
     floatingControl: normalizeFloatingControlSettings(undefined)
-  };
+  }, "s4");
 }
 
 export function normalizeSlots(slots: RosterSlot[]): RosterSlot[] {
@@ -139,18 +140,31 @@ function resolveTeam(
 
 export function normalizeRosterStyle(style: Partial<RosterStyle> | undefined): RosterStyle {
   const resolution = normalizeResolution(style?.resolution);
-  const presetDefaults = getResolutionPresetStyleDefaults(resolution);
+  const presetDefaults = style?.cloudTheme === "s4"
+    ? getRoomLayoutPresetStyleDefaults(resolution, style.teamLayout?.mode ?? "curved", "s4")
+    : getResolutionPresetStyleDefaults(resolution);
+  const previousS4Preset = style?.cloudTheme === "s4" && style.cardGap === 8 && style.cardPlateYOffset === 22 &&
+    ((style.imageScale === 0.96 && style.cardPlateScale === 1.02) || (style.imageScale === 1.02 && style.cardPlateScale === 1.08));
   const legacyDefaultLayout = isLegacyDefaultLayout(style);
+  const legacy1440pPreset = isLegacy1440pPreset(style, resolution);
+  const legacyCardPlatePreset = isLegacyCardPlatePreset(style);
+  const previousCurvedCloudPreset = isPreviousCurvedCloudPreset(style);
   return {
     resolution,
-    cardGap: legacyDefaultLayout ? presetDefaults.cardGap : clampNumber(style?.cardGap, 0, 72, presetDefaults.cardGap),
-    imageScale: legacyDefaultLayout
+    cardGap: legacyDefaultLayout || previousS4Preset ? presetDefaults.cardGap : clampNumber(style?.cardGap, 0, 72, presetDefaults.cardGap),
+    imageScale: previousS4Preset || legacyDefaultLayout || legacy1440pPreset || previousCurvedCloudPreset
       ? presetDefaults.imageScale
       : clampNumber(style?.imageScale, 0.7, 1.7, presetDefaults.imageScale),
     cardBackground: normalizeCardBackground(style?.cardBackground),
+    cloudTheme: style?.cloudTheme === "s4" ? "s4" : "s3",
+    s4CardPlate: style?.s4CardPlate === "star-pennant" || style?.s4CardPlate === "moon-window" ? style.s4CardPlate : "moon-ring",
     cardPlateOutlineWidth: clampNumber(style?.cardPlateOutlineWidth, 0, 8, 1),
-    cardPlateScale: clampNumber(style?.cardPlateScale, 0.7, 1.6, 1.15),
-    cardPlateYOffset: clampNumber(style?.cardPlateYOffset, -40, 80, 18),
+    cardPlateScale: previousS4Preset || legacyCardPlatePreset || previousCurvedCloudPreset
+      ? presetDefaults.cardPlateScale
+      : clampNumber(style?.cardPlateScale, 0.7, 1.6, presetDefaults.cardPlateScale),
+    cardPlateYOffset: previousS4Preset || legacyCardPlatePreset
+      ? presetDefaults.cardPlateYOffset
+      : clampNumber(style?.cardPlateYOffset, -40, 80, presetDefaults.cardPlateYOffset),
     showElementIcon: style?.showElementIcon ?? true,
     defeatFilter: {
       grayscale: clampNumber(style?.defeatFilter?.grayscale, 0, 1, 1),
@@ -170,6 +184,10 @@ export function normalizeRosterStyle(style: Partial<RosterStyle> | undefined): R
       verticalOffset: legacyDefaultLayout
         ? presetDefaults.teamLayout.verticalOffset
         : clampNumber(style?.teamLayout?.verticalOffset, -160, 160, presetDefaults.teamLayout.verticalOffset)
+    },
+    teamVisibility: {
+      left: style?.teamVisibility?.left ?? true,
+      right: style?.teamVisibility?.right ?? true
     },
     nameLabel: normalizeNameLabelStyle(style?.nameLabel),
     healthBar: normalizeHealthBarStyle(style?.healthBar)
@@ -199,6 +217,36 @@ function isLegacyDefaultLayout(style: Partial<RosterStyle> | undefined): boolean
   const centerGapIsDefault = style.teamLayout?.centerGap === undefined || style.teamLayout.centerGap === 1540;
   const verticalOffsetIsDefault = style.teamLayout?.verticalOffset === undefined || style.teamLayout.verticalOffset === 0;
   return cardGapIsLegacyDefault && imageScaleIsLegacyDefault && centerGapIsDefault && verticalOffsetIsDefault;
+}
+
+function isLegacy1440pPreset(style: Partial<RosterStyle> | undefined, resolution: RosterStyle["resolution"]): boolean {
+  return (
+    resolution.width === 2560 &&
+    resolution.height === 1440 &&
+    style?.cardGap === 8 &&
+    style.imageScale === 1.06 &&
+    style.teamLayout?.centerGap === 1540 &&
+    (style.teamLayout.verticalOffset ?? 0) === 0
+  );
+}
+
+function isLegacyCardPlatePreset(style: Partial<RosterStyle> | undefined): boolean {
+  return (
+    (style?.cardPlateScale === undefined && style?.cardPlateYOffset === undefined) ||
+    (style?.cardPlateScale === 1.15 && (style.cardPlateYOffset ?? 18) === 18)
+  );
+}
+
+function isPreviousCurvedCloudPreset(style: Partial<RosterStyle> | undefined): boolean {
+  return (
+    style?.teamLayout?.mode !== "vertical" &&
+    style?.cardGap === 8 &&
+    style.imageScale === 1.02 &&
+    style.cardPlateScale === 1.08 &&
+    (style.cardPlateYOffset ?? 22) === 22 &&
+    style.teamLayout?.centerGap === 1540 &&
+    (style.teamLayout.verticalOffset ?? 0) === 0
+  );
 }
 
 export function normalizeAssetLibrarySettings(

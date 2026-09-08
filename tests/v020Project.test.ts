@@ -119,8 +119,10 @@ describe("v0.2.0 project resolution", () => {
 
     expect(style.cardBackground).toBe("cloud");
     expect(style.cardPlateOutlineWidth).toBe(1);
-    expect(style.cardPlateScale).toBe(1.15);
-    expect(style.cardPlateYOffset).toBe(18);
+    expect(style.imageScale).toBe(0.96);
+    expect(style.cardPlateScale).toBe(1.02);
+    expect(style.cardPlateYOffset).toBe(22);
+    expect(style.teamVisibility).toEqual({ left: true, right: true });
     expect(normalizeRosterStyle({ cardBackground: "transparent" }).cardBackground).toBe("transparent");
     expect(normalizeRosterStyle({ cardBackground: "rectangle" }).cardBackground).toBe("rectangle");
     expect(normalizeRosterStyle({ cardBackground: "white" as never }).cardBackground).toBe("cloud");
@@ -136,8 +138,9 @@ describe("v0.2.0 project resolution", () => {
 
     expect(style.defeatFilter).toEqual({ grayscale: 1, opacity: 0.55 });
     expect(style.cardPlateOutlineWidth).toBe(1);
-    expect(style.cardPlateScale).toBe(1.15);
-    expect(style.cardPlateYOffset).toBe(18);
+    expect(style.imageScale).toBe(0.96);
+    expect(style.cardPlateScale).toBe(1.02);
+    expect(style.cardPlateYOffset).toBe(22);
     expect(style.obsWindow).toEqual({
       width: 420,
       height: 1080,
@@ -145,8 +148,22 @@ describe("v0.2.0 project resolution", () => {
       clickThrough: true
     });
     expect(style.teamLayout).toEqual({ mode: "curved", centerGap: 1540, verticalOffset: 0 });
+    expect(style.teamVisibility).toEqual({ left: true, right: true });
     expect(slot.defeated).toBe(false);
     expect(slot.formAssetId).toBe(slot.asset?.id);
+  });
+
+  it("keeps independent team visibility settings for combined views", () => {
+    expect(
+      normalizeRosterStyle({
+        teamVisibility: { left: false, right: true }
+      }).teamVisibility
+    ).toEqual({ left: false, right: true });
+    expect(
+      normalizeRosterStyle({
+        teamVisibility: { left: true, right: false }
+      }).teamVisibility
+    ).toEqual({ left: true, right: false });
   });
 
   it("keeps old project files compatible while defaulting to the new curved roster layout", () => {
@@ -169,6 +186,48 @@ describe("v0.2.0 project resolution", () => {
         teamLayout: { mode: "stacked" as never, centerGap: 1320, verticalOffset: -20 }
       }).teamLayout?.mode
     ).toBe("curved");
+  });
+
+  it("migrates only the old 1440p default pet scale while preserving customized layouts", () => {
+    const oldDefault = normalizeRosterStyle({
+      resolution: { width: 2560, height: 1440 },
+      cardGap: 8,
+      imageScale: 1.06,
+      teamLayout: { mode: "curved", centerGap: 1540, verticalOffset: 0 }
+    });
+    const customized = normalizeRosterStyle({
+      resolution: { width: 2560, height: 1440 },
+      cardGap: 20,
+      imageScale: 1.06,
+      teamLayout: { mode: "curved", centerGap: 1540, verticalOffset: 0 }
+    });
+
+    expect(oldDefault.imageScale).toBe(0.96);
+    expect(customized.imageScale).toBe(1.06);
+  });
+
+  it("migrates the previous curved cloud preset but preserves the vertical v3.2.5 preset", () => {
+    const previousCurved = normalizeRosterStyle({
+      resolution: { width: 1920, height: 1080 },
+      cardGap: 8,
+      imageScale: 1.02,
+      cardPlateScale: 1.08,
+      cardPlateYOffset: 22,
+      teamLayout: { mode: "curved", centerGap: 1540, verticalOffset: 0 }
+    });
+    const vertical = normalizeRosterStyle({
+      resolution: { width: 1920, height: 1080 },
+      cardGap: 8,
+      imageScale: 1.02,
+      cardPlateScale: 1.08,
+      cardPlateYOffset: 22,
+      teamLayout: { mode: "vertical", centerGap: 1540, verticalOffset: 0 }
+    });
+
+    expect(previousCurved.imageScale).toBe(0.96);
+    expect(previousCurved.cardPlateScale).toBe(1.02);
+    expect(vertical.imageScale).toBe(1.02);
+    expect(vertical.cardPlateScale).toBe(1.08);
   });
 
   it("uses formAssetId as the actual rendered form without changing the input name", () => {
