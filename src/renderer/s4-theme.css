@@ -1,0 +1,109 @@
+.season-theme-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.season-theme-options button { min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 6px; font-size: 12px; }
+.season-theme-mark { font-size: 25px; line-height: 1; color: #436777; }
+.season-theme-options [data-theme="s3"] .season-theme-mark { color: #678451; }
+.season-theme-options button[aria-pressed="true"] { border-color: #688b97; background: #edf4f4; box-shadow: inset 0 0 0 1px #688b97; color: #214759; }
+.season-theme-group .small-note { margin: 8px 0 0; font-size: 11px; line-height: 1.5; }
+
+.room-player-bar-preset-s4-moon-relic {
+  --moon-unit: min(0.052083cqw, 0.092593cqh);
+  bottom: calc(var(--moon-unit) * 24);
+  width: var(--room-player-bar-width, 64%);
+  height: calc(var(--moon-unit) * 112);
+  grid-template-columns: minmax(0, 1fr) 29% minmax(0, 1fr);
+  padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  overflow: visible; color: #214759;
+}
+.room-player-bar-preset-s4-moon-relic .room-player-bar-art {
+  /* 原始透明图的可见区为 y=251..448；按可见边界对齐底框。 */
+  top: -126.77%; height: 365.66%; animation: none;
+}
+.room-player-bar-preset-s4-moon-relic > .room-player-side,
+.room-player-bar-preset-s4-moon-relic > .room-score-pill { z-index: 1; }
+.room-player-bar-preset-s4-moon-relic .room-player-side {
+  height: 100%; gap: calc(var(--moon-unit) * 8);
+  padding: 0 7% 0 25%; grid-template-columns: calc(var(--moon-unit) * 55) minmax(0, 1fr);
+}
+.room-player-bar-preset-s4-moon-relic .room-player-side-right {
+  padding: 0 25% 0 7%; grid-template-columns: minmax(0, 1fr) calc(var(--moon-unit) * 55);
+}
+.room-player-bar-preset-s4-moon-relic .room-player-side-no-avatar { grid-template-columns: minmax(0, 1fr); }
+.room-player-bar-preset-s4-moon-relic .room-player-name {
+  width: 100%; padding: 0; color: #214759; font-weight: 850; text-align: center;
+  font-size: calc(var(--moon-unit) * 38 * var(--room-player-font-scale, 1) * var(--room-role-size-ratio, 1));
+  text-shadow: 0 1px 0 #fff; overflow: hidden; text-overflow: ellipsis;
+}
+.room-player-bar-preset-s4-moon-relic .room-player-avatar-slot {
+  width: calc(var(--moon-unit) * 55); height: calc(var(--moon-unit) * 64); border: 0; padding: 0; background: none; box-shadow: none;
+}
+.room-player-bar-preset-s4-moon-relic .room-player-avatar { width: 100%; height: 100%; }
+.room-player-bar-preset-s4-moon-relic .room-score-pill {
+  /* 文字仅使用整栏中央约 18%，避开月牙内缘与下方星尖。 */
+  width: 62%; height: calc(var(--moon-unit) * 46); min-height: 0; padding: 0;
+  align-self: start; justify-self: center; margin-top: calc(var(--moon-unit) * 26);
+  grid-template-columns: 36% 28% 36%; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+}
+.room-player-bar-preset-s4-moon-relic .room-score-value {
+  width: 100%; height: 100%; display: grid; place-items: center; overflow: visible;
+  font-family: "Arial Black", "MiSans", sans-serif; font-weight: 900; line-height: 1;
+  font-size: calc(var(--moon-unit) * 50 * var(--room-player-font-scale, 1) * var(--room-role-size-ratio, 1) * var(--room-score-fit, 1));
+  color: #fff7df; text-shadow: 0 2px 3px #102e40;
+}
+.room-player-bar-preset-s4-moon-relic .room-score-separator {
+  width: 100%; height: calc(var(--moon-unit) * 26); align-self: start;
+  margin-top: 0; padding: 0; display: grid; place-items: center;
+  border-radius: 0; background: none; box-shadow: none; color: #f2dfad;
+  font-size: calc(var(--moon-unit) * 26); font-weight: 850; line-height: 1;
+}
+.room-player-bar-preset-s4-moon-relic .room-score-format {
+  top: calc(var(--moon-unit) * 27); bottom: auto; width: 28%; height: calc(var(--moon-unit) * 20);
+  display: grid; place-items: center; color: #dceef0; font-size: calc(var(--moon-unit) * 20); line-height: 1;
+}
+.room-player-bar-preset-s4-moon-relic.room-player-bar-no-format .room-score-separator { align-self: center; margin-top: 0; }
+.room-player-bar-no-format .room-score-format { display: none; }
+
+.room-text-box[data-fill-style="s4-moonlight"] > span:first-child {
+  position: relative; width: fit-content; max-width: 100%; overflow: visible; isolation: isolate;
+  background: none; -webkit-text-fill-color: var(--room-text-fill-color, #e7f4f5);
+  -webkit-text-stroke: var(--room-text-stroke, 1px) var(--room-text-stroke-color, #234657);
+  paint-order: stroke fill; text-shadow: none;
+  filter: drop-shadow(0 2px 2px var(--room-text-shadow-color, #234657));
+}
+.room-text-box[data-fill-style="s4-moonlight"] > span:first-child::before {
+  content: "☾"; position: absolute; left: -0.9em; top: 0.14em;
+  font-size: 0.7em; color: #eedcad; -webkit-text-fill-color: #eedcad; -webkit-text-stroke: 0;
+}
+.room-text-style-presets button[data-fill-style="s4-moonlight"] { background: #e9f2f3; border-color: #8faab3; }
+@media (prefers-reduced-motion: reduce) {
+  .room-player-bar-preset-s4-moon-relic * { animation: none !important; transition: none !important; }
+}
+
+.overlay-scene[data-cloud-theme="s4"] .pet-card-plate-moon {
+  top: calc(var(--card-plate-y-offset) + var(--s4-plate-unit) * 2); width: calc(var(--card-plate-width) * 0.9);
+  aspect-ratio: 240 / 144; transform: translateX(-50%); opacity: 0.97; filter: none;
+}
+.overlay-scene[data-cloud-theme="s4"] .pet-card-plate-star-pennant {
+  top: calc(var(--card-plate-y-offset) + var(--s4-plate-unit) * 24);
+  width: calc(var(--card-plate-width) * 1.02); aspect-ratio: auto;
+}
+.overlay-scene[data-cloud-theme="s4"] .pet-art-wrap { inset: 0 0 calc(var(--name-label-height) - 2px); }
+.overlay-scene[data-cloud-theme="s4"] .pet-art { transform: translate(-50%, -50%); max-width: 100%; max-height: 100%; }
+
+
+.room-player-bar-preset-s4-moon-relic .room-score-separator { justify-content: center; }
+
+.room-player-side-left { --room-role-size-ratio: var(--player-left-size-ratio, 1); }
+.room-player-side-right { --room-role-size-ratio: var(--player-right-size-ratio, 1); }
+.room-score-value-left { --room-role-size-ratio: var(--score-left-size-ratio, 1); }
+.room-score-value-right { --room-role-size-ratio: var(--score-right-size-ratio, 1); }
+.room-player-bar-preset-s4-moon-relic .room-player-side-left .room-player-name { text-align: right; color: var(--player-left-color, #214759); font-family: var(--player-left-font, "MiSans", sans-serif); }
+.room-player-bar-preset-s4-moon-relic .room-player-side-right .room-player-name { text-align: left; color: var(--player-right-color, #214759); font-family: var(--player-right-font, "MiSans", sans-serif); }
+.room-player-bar-preset-s4-moon-relic .room-score-value-left { color: var(--score-left-color, #fff7df); font-family: var(--score-left-font, "Arial Black", "MiSans", sans-serif); }
+.room-player-bar-preset-s4-moon-relic .room-score-value-right { color: var(--score-right-color, #fff7df); font-family: var(--score-right-font, "Arial Black", "MiSans", sans-serif); }
+.room-player-bar-preset-s4-moon-relic .room-score-separator { font-size: calc(var(--moon-unit) * var(--room-vs-size, 26)); }
+.room-player-bar-preset-s4-moon-relic .room-score-format { font-size: calc(var(--moon-unit) * var(--room-format-size, 20)); }
+.room-player-bar-preset-s3-clover-hinge .room-score-separator { font-size: calc(var(--room-s3-unit) * var(--room-vs-size, 39)); }
+.room-player-bar-preset-s3-clover-hinge .room-score-format { font-size: calc(var(--room-s3-unit) * var(--room-format-size, 28)); }
+
+.room-player-side-left .room-player-side-score { --room-role-size-ratio: var(--score-left-size-ratio, 1); }
+.room-player-side-right .room-player-side-score { --room-role-size-ratio: var(--score-right-size-ratio, 1); }

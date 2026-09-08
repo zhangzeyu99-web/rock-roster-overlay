@@ -1,6 +1,6 @@
 {
   "name": "rock-roster-overlay",
-  "version": "3.5.1",
+  "version": "3.6.4",
   "description": "洛克王国世界直播阵容透明叠加器",
   "type": "module",
   "private": true,
@@ -19,7 +19,7 @@
     "visual:evidence": "node scripts/verify-visual-evidence.mjs",
     "release:gate": "node scripts/verify-release-gate.mjs",
     "release:bot": "node scripts/release-bot.mjs",
-    "verify:package": "node scripts/verify-packaged-current.mjs",
+    "verify:package": "node scripts/verify-packaged-with-backup.mjs",
     "cleanup:old": "node scripts/cleanup-old-releases.mjs",
     "dist": "npm run build && electron-builder --win",
     "lint": "tsc --noEmit",
@@ -70,11 +70,16 @@
     ],
     "extraResources": [
       {
+        "from": "build/app-icon.ico",
+        "to": "app-icon.ico"
+      },
+      {
         "from": "seed-data",
         "to": "seed-data"
       }
     ],
     "win": {
+      "icon": "build/app-icon.ico",
       "target": [
         "nsis"
       ]

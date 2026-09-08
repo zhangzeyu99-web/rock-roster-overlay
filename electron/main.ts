@@ -2,10 +2,10 @@ import { BrowserWindow, Menu, app, ipcMain, screen, shell } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { CaptureMode, RosterProject, SlotHealth, TeamSide } from "../src/types";
+import type { CaptureMode, ObsWindowState, RosterProject, SlotHealth, TeamSide } from "../src/types";
 import { createAsyncGate } from "../src/core/asyncGate";
 import { getCaptureCanvasSize } from "../src/core/captureGeometry";
-import { getCaptureWindowOptions } from "../src/core/captureWindow";
+import { getCaptureWindowOptions, shouldIgnoreCaptureWindowMouse } from "../src/core/captureWindow";
 import {
   activateProject,
   ensureStore,
@@ -30,10 +30,12 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 const appRoot = app.isPackaged ? app.getAppPath() : path.join(__dirname, "..");
 const rendererRoot = isDev ? path.join(__dirname, "../dist") : path.join(appRoot, "dist");
 const publicRoot = isDev ? path.join(__dirname, "../public") : rendererRoot;
+const windowIcon = isDev ? path.join(__dirname, "../build/app-icon.ico") : path.join(process.resourcesPath, "app-icon.ico");
 
 let mainWindow: BrowserWindow | undefined;
 let obsWindow: BrowserWindow | undefined;
 let obsWindowMode: ExportMode | undefined;
+let obsWindowClickThrough = true;
 let controlWindow: BrowserWindow | undefined;
 let controlWindowAlwaysOnTop = true;
 let server: HttpServerHandle | undefined;
@@ -50,6 +52,7 @@ async function createWindow() {
     minWidth: 1180,
     minHeight: 760,
     title: "阵容叠加器",
+    icon: windowIcon,
     backgroundColor: "#f7f9fc",
     autoHideMenuBar: true,
     webPreferences: {
@@ -145,6 +148,7 @@ async function openControlWindowUnlocked(): Promise<void> {
     alwaysOnTop: controlWindowAlwaysOnTop,
     backgroundColor: "#00000000",
     title: "直播快捷控制",
+    icon: windowIcon,
     webPreferences: {
       preload,
       contextIsolation: true,
@@ -179,6 +183,19 @@ function broadcastRuntimeCacheChanged(): void {
   controlWindow?.webContents.send("runtime-cache-changed", status);
 }
 
+function getObsWindowState(): ObsWindowState {
+  if (!obsWindow || obsWindow.isDestroyed() || !obsWindowMode) {
+    return { open: false };
+  }
+  return { open: true, mode: obsWindowMode };
+}
+
+function broadcastObsWindowStateChanged(): void {
+  const state = getObsWindowState();
+  mainWindow?.webContents.send("obs-window-state-changed", state);
+  controlWindow?.webContents.send("obs-window-state-changed", state);
+}
+
 async function releaseRendererMemory(): Promise<void> {
   const windows = [mainWindow, controlWindow, obsWindow].filter(
     (window): window is BrowserWindow => Boolean(window && !window.isDestroyed())
@@ -208,6 +225,7 @@ async function openObsWindowUnlocked(mode: ExportMode = "overlay"): Promise<void
     await syncObsWindowOptions();
     obsWindow.show();
     obsWindow.focus();
+    broadcastObsWindowStateChanged();
     return;
   }
 
@@ -232,12 +250,17 @@ async function openObsWindowUnlocked(mode: ExportMode = "overlay"): Promise<void
   });
 
   obsWindow = nextWindow;
-  obsWindow.setIgnoreMouseEvents(windowOptions.ignoreMouseEvents, { forward: true });
   obsWindowMode = mode;
+  obsWindowClickThrough = windowOptions.ignoreMouseEvents;
+  syncObsWindowMouseBehavior(nextWindow);
+  nextWindow.on("focus", () => syncObsWindowMouseBehavior(nextWindow));
+  nextWindow.on("blur", () => syncObsWindowMouseBehavior(nextWindow));
   nextWindow.on("closed", () => {
     if (obsWindow === nextWindow) {
       obsWindow = undefined;
       obsWindowMode = undefined;
+      obsWindowClickThrough = true;
+      broadcastObsWindowStateChanged();
     }
   });
   nextWindow.webContents.on("context-menu", () => {
@@ -246,10 +269,6 @@ async function openObsWindowUnlocked(mode: ExportMode = "overlay"): Promise<void
     }
     Menu.buildFromTemplate([
       {
-        label: "临时开启鼠标穿透",
-        click: () => nextWindow.setIgnoreMouseEvents(true, { forward: true })
-      },
-      {
         label: "关闭采集窗口",
         click: () => nextWindow.close()
       }
@@ -257,6 +276,7 @@ async function openObsWindowUnlocked(mode: ExportMode = "overlay"): Promise<void
   });
 
   await nextWindow.loadURL(`${server.origin}/overlay/default?mode=${mode}&export=1&capture=window`);
+  broadcastObsWindowStateChanged();
 }
 
 async function syncObsWindowOptions(): Promise<void> {
@@ -269,7 +289,21 @@ async function syncObsWindowOptions(): Promise<void> {
   const windowOptions = getCaptureWindowOptions(mode, project.style.obsWindow, project.style.resolution);
   obsWindow.setContentSize(windowOptions.width, windowOptions.height);
   obsWindow.setAlwaysOnTop(windowOptions.alwaysOnTop, "screen-saver");
-  obsWindow.setIgnoreMouseEvents(windowOptions.ignoreMouseEvents, { forward: true });
+  obsWindowClickThrough = windowOptions.ignoreMouseEvents;
+  syncObsWindowMouseBehavior(obsWindow);
+}
+
+function syncObsWindowMouseBehavior(targetWindow: BrowserWindow): void {
+  if (targetWindow.isDestroyed() || obsWindow !== targetWindow) {
+    return;
+  }
+  const mode = obsWindowMode ?? "overlay";
+  const ignoreMouseEvents = shouldIgnoreCaptureWindowMouse(
+    mode,
+    obsWindowClickThrough,
+    targetWindow.isFocused()
+  );
+  targetWindow.setIgnoreMouseEvents(ignoreMouseEvents, { forward: true });
 }
 
 app.whenReady().then(async () => {
@@ -356,6 +390,7 @@ app.whenReady().then(async () => {
     return liveState;
   });
   ipcMain.handle("obs-window:open", (_event, mode: CaptureMode) => openObsWindow(mode));
+  ipcMain.handle("obs-window:get-state", () => getObsWindowState());
   ipcMain.handle("obs-window:close", () => {
     obsWindow?.close();
   });
@@ -445,7 +480,7 @@ async function waitForOverlayReady(window: BrowserWindow): Promise<void> {
         observer.observe(document.body, { childList: true, subtree: true });
       });
       const waitImages = () => Promise.all(
-        Array.from(document.querySelectorAll("img.pet-art, img.room-background-image")).map(async (image) => {
+        Array.from(document.querySelectorAll("img.pet-art, img.room-background-image, img.pet-card-plate-cloud, img.room-player-bar-art, .room-broadcast-title img")).map(async (image) => {
           if (image.complete && image.naturalWidth > 0) {
             await image.decode?.().catch(() => undefined);
             return;

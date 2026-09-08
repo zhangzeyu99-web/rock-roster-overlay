@@ -1,3 +1,4 @@
+export type SeasonTheme = "s3" | "s4";
 export type TeamSide = "left" | "right";
 export type CardBackground = "transparent" | "cloud" | "rectangle";
 export type CaptureMode = TeamSide | "overlay" | "room";
@@ -11,10 +12,16 @@ export type RoomTextRole =
   | "score-right"
   | "custom";
 export type RoomTextAlign = "left" | "center" | "right";
-export type RoomTextFillStyle = "solid" | "s3-lead-prism";
+export type RoomTextFillStyle = "solid" | "s3-lead-prism" | "s4-moonlight";
 export type RoomGuideMode = "center" | "safe";
 export type TeamLayoutMode = "curved" | "vertical";
+
+export interface ObsWindowState {
+  open: boolean;
+  mode?: CaptureMode;
+}
 export type RoomPlayerBarPreset =
+  | "s4-moon-relic"
   | "s3-storybook"
   | "s3-prism-bookmark"
   | "s3-clover-hinge"
@@ -140,6 +147,8 @@ export interface RoomTextBox {
   fontSize: number;
   fontWeight: number;
   color: string;
+  hudFontOverride?: boolean;
+  hudColorOverride?: boolean;
   fillStyle?: RoomTextFillStyle;
   strokeEnabled?: boolean;
   strokeColor: string;
@@ -172,6 +181,9 @@ export interface RoomPlayerBarStyle {
   scoreVisible: boolean;
   preset: RoomPlayerBarPreset;
   boText: string;
+  showFormat?: boolean;
+  vsFontSize?: number;
+  formatFontSize?: number;
   widthScale?: number;
   textScale?: number;
   leftAvatarPath?: string;
@@ -235,6 +247,8 @@ export interface RosterStyle {
   cardGap: number;
   imageScale: number;
   cardBackground: CardBackground;
+  cloudTheme?: SeasonTheme;
+  s4CardPlate?: "moon-ring" | "star-pennant" | "moon-window";
   cardPlateOutlineWidth?: number;
   cardPlateScale?: number;
   cardPlateYOffset?: number;
@@ -242,6 +256,7 @@ export interface RosterStyle {
   defeatFilter?: DefeatFilterStyle;
   obsWindow?: ObsWindowStyle;
   teamLayout?: TeamLayoutStyle;
+  teamVisibility?: Record<TeamSide, boolean>;
   nameLabel?: Partial<NameLabelStyle>;
   healthBar?: Partial<HealthBarStyle>;
 }

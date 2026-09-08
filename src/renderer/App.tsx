@@ -20,12 +20,14 @@ import type {
   DefeatFilterStyle,
   HealthBarStyle,
   NameLabelStyle,
+  ObsWindowState,
   PetAsset,
   Resolution,
   ResolvedRosterProject,
   ResolvedRosterSlot,
   RoomDesign,
   RoomPlayerBarPreset,
+  SeasonTheme,
   RoomTextBox,
   RoomTitleImageStyle,
   RuntimeCacheStatus,
@@ -62,17 +64,22 @@ import {
 import { getAvatarAssistReadiness } from "../core/avatarMatching";
 import {
   builtinRoomBackground,
-  createCompetitionRoomDesign,
+  builtinRoomTitle,
+  builtinS4RoomTitle,
+  s4MoonTitleStyle,
   createDefaultRoomHud,
   createCustomRoomTextBox,
   getDefaultRoomTitleTextStyle,
   getRoomTextStylePresetsForRole,
+  resolveRoomHudTextAppearance,
   normalizeRoomDesign,
   roomTitleImageElementId
 } from "../core/room";
+import { applySeasonTheme, getAppliedSeasonTheme, getSeasonTitleImage, seasonThemes } from "../core/season";
 import {
   formatResolution,
   getCaptureCanvasSize,
+  getRoomLayoutPresetStyleDefaults,
   getResolutionPresetId,
   getResolutionPresetStyleDefaults,
   outputResolutionPresets
@@ -256,6 +263,7 @@ function getRoomTextStrokeColor(style: Partial<RoomTextBox>): string {
 
 function normalizePlayerBarPresetSelection(value: string): RoomPlayerBarPreset {
   if (
+    value === "s4-moon-relic" ||
     value === "s3-storybook" ||
     value === "s3-prism-bookmark" ||
     value === "s3-clover-hinge" ||
@@ -379,6 +387,7 @@ export function App() {
   const [previewMode, setPreviewMode] = useState<CaptureMode>("room");
   const [resolutionPanelOpen, setResolutionPanelOpen] = useState(false);
   const [openingObsWindowMode, setOpeningObsWindowMode] = useState<ObsMode | undefined>();
+  const [obsWindowState, setObsWindowState] = useState<ObsWindowState>({ open: false });
   const [activePanel, setActivePanel] = useState<ActivePanel>("roster");
   const [selectedRoomTextId, setSelectedRoomTextId] = useState<string | undefined>("room-title");
   const [liveSync, setLiveSync] = useState(true);
@@ -429,6 +438,16 @@ export function App() {
       })
       .catch(() => undefined);
     const unsubscribe = window.roster?.onRuntimeCacheChanged?.((next) => setRuntimeCacheStatus(next));
+    return () => unsubscribe?.();
+  }, []);
+
+  useEffect(() => {
+    const bridge = window.roster;
+    if (!bridge?.getObsWindowState) {
+      return;
+    }
+    void bridge.getObsWindowState().then(setObsWindowState).catch(() => undefined);
+    const unsubscribe = bridge.onObsWindowStateChanged?.(setObsWindowState);
     return () => unsubscribe?.();
   }, []);
 
@@ -664,6 +683,20 @@ export function App() {
     }, { deferred: true });
   };
 
+  const updateTeamVisibility = (side: TeamSide, hidden: boolean) => {
+    const currentProject = getEditableProject();
+    if (!currentProject) {
+      return;
+    }
+    updateStyle({
+      teamVisibility: {
+        left: currentProject.style.teamVisibility?.left ?? true,
+        right: currentProject.style.teamVisibility?.right ?? true,
+        [side]: !hidden
+      }
+    });
+  };
+
   const updateDefeatFilter = (patch: Partial<DefeatFilterStyle>) => {
     const currentProject = getEditableProject();
     if (!currentProject) {
@@ -696,7 +729,7 @@ export function App() {
     if (!currentProject) {
       return;
     }
-    const defaults = getResolutionPresetStyleDefaults(resolution);
+    const defaults = getRoomLayoutPresetStyleDefaults(resolution, currentProject.style.teamLayout?.mode ?? "curved", currentProject.style.cloudTheme);
     void updateProject(
       {
         ...currentProject,
@@ -705,15 +738,14 @@ export function App() {
           resolution,
           cardGap: defaults.cardGap,
           imageScale: defaults.imageScale,
+          cardPlateScale: defaults.cardPlateScale,
+          cardPlateYOffset: defaults.cardPlateYOffset,
           teamLayout: {
             ...defaults.teamLayout,
             mode: currentProject.style.teamLayout?.mode ?? defaults.teamLayout.mode
           }
         },
-        room:
-          currentProject.room?.mode === "free"
-            ? currentProject.room
-            : createCompetitionRoomDesign(currentProject.room)
+        room: currentProject.room
       },
       { deferred: true }
     );
@@ -990,19 +1022,35 @@ export function App() {
     updateRoom({ ...room, mode: "free", textBoxes }, { immediate: true });
   };
 
+  const applyTheme = (theme: SeasonTheme) => {
+    const currentProject = getEditableProject();
+    if (!currentProject) return;
+    const next = applySeasonTheme({ ...currentProject, room: getEditableRoom() }, theme);
+    roomDraftRef.current = next.room;
+    setRoomDraft(next.room);
+    void updateProject(next);
+    setStatus(`已应用 ${seasonThemes.find((item) => item.id === theme)?.name} 主题`);
+  };
+
   const applyRoomPreset = (layoutMode: TeamLayoutMode) => {
     const currentProject = getEditableProject();
     if (!resolved || !currentProject) {
       return;
     }
-    const room = createCompetitionRoomDesign(getEditableRoom());
-    const defaults = getResolutionPresetStyleDefaults(currentProject.style.resolution ?? resolved.style.resolution);
+    const room = normalizeRoomDesign(getEditableRoom());
+    const defaults = getRoomLayoutPresetStyleDefaults(
+      currentProject.style.resolution ?? resolved.style.resolution,
+      layoutMode,
+      currentProject.style.cloudTheme
+    );
     const project = {
       ...currentProject,
       style: {
         ...currentProject.style,
         cardGap: defaults.cardGap,
         imageScale: defaults.imageScale,
+        cardPlateScale: defaults.cardPlateScale,
+        cardPlateYOffset: defaults.cardPlateYOffset,
         teamLayout: {
           ...defaults.teamLayout,
           mode: layoutMode
@@ -1194,6 +1242,7 @@ export function App() {
     setOpeningObsWindowMode(mode);
     try {
       await window.roster?.openObsWindow(mode);
+      setObsWindowState({ open: true, mode });
       setStatus(`${obsModes.find((item) => item.mode === mode)?.label ?? "OBS"} 透明窗口已打开`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "OBS 透明窗口打开失败");
@@ -1206,10 +1255,19 @@ export function App() {
   const closeObsWindow = async () => {
     try {
       await window.roster?.closeObsWindow();
+      setObsWindowState({ open: false });
       setStatus("OBS 透明窗口已关闭");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "OBS 透明窗口关闭失败");
     }
+  };
+
+  const toggleObsWindow = async (mode: ObsMode) => {
+    if (obsWindowState.open && obsWindowState.mode === mode) {
+      await closeObsWindow();
+      return;
+    }
+    await openObsWindow(mode);
   };
 
   const openControlWindow = async () => {
@@ -1241,7 +1299,8 @@ export function App() {
   const room = roomDraft ?? normalizeRoomDesign(resolved.room);
   const previewResolved = { ...resolved, room };
   const titleImageVisible = Boolean(room.hud?.titleImage.visible && room.hud.titleImage.imagePath);
-  const selectedTitleImage = selectedRoomTextId === roomTitleImageElementId && titleImageVisible;
+  const selectedTitleImage = titleImageVisible && (selectedRoomTextId === roomTitleImageElementId ||
+    room.textBoxes.some((box) => box.id === selectedRoomTextId && box.role === "title"));
   const selectedRoomText =
     selectedTitleImage
       ? undefined
@@ -1249,6 +1308,14 @@ export function App() {
   const activeRoomSelectionId = selectedTitleImage ? roomTitleImageElementId : selectedRoomText?.id;
   const currentCaptureMode: CaptureMode = previewMode;
   const currentObsMode = obsModes.find((item) => item.mode === currentCaptureMode) ?? obsModes[2];
+  const currentCaptureWindowOpen = obsWindowState.open && obsWindowState.mode === currentCaptureMode;
+  const currentCaptureButtonLabel = openingObsWindowMode
+    ? "打开中"
+    : currentCaptureWindowOpen
+      ? "关闭采集窗口"
+      : obsWindowState.open
+        ? `切换到${currentObsMode.label}采集`
+        : `打开${currentObsMode.label}采集`;
   const outputResolution = resolved.style.resolution;
   const teamLayout = resolved.style.teamLayout ?? getResolutionPresetStyleDefaults(outputResolution).teamLayout;
   const previewSize = getCaptureCanvasSize(previewMode, outputResolution);
@@ -1269,28 +1336,18 @@ export function App() {
         </div>
         <div className="top-actions">
           <div className="top-live-actions">
-            <div className="top-obs-url">
-              <span>OBS</span>
-              <input value={obsUrls[currentCaptureMode]} readOnly />
-              <button onClick={() => void copyObsUrl(currentCaptureMode)} title="复制当前 OBS 地址">
-                <Copy size={15} />
-              </button>
-            </div>
             <button
               className="top-action-button obs-window-button"
-              onClick={() => void openObsWindow(currentCaptureMode)}
+              onClick={() => void toggleObsWindow(currentCaptureMode)}
               disabled={Boolean(openingObsWindowMode)}
             >
-              {openingObsWindowMode ? "打开中" : "采集窗口"}
+              {openingObsWindowMode ? "打开中" : currentCaptureWindowOpen ? "关闭采集" : "采集窗口"}
             </button>
             <button className="top-action-button" onClick={() => void openControlWindow()} title="打开直播快捷控制悬浮窗">
               <PanelRightOpen size={15} />
               快捷控制
             </button>
           </div>
-          <button className="primary-button compact" onClick={() => void handleExport(currentCaptureMode)} disabled={isExporting}>
-            导出预览 PNG
-          </button>
           {exportFeedback.status !== "idle" && (
             <div className={["top-export-feedback", `top-export-feedback-${exportFeedback.status}`].join(" ")}>
               <span>{exportFeedback.message}</span>
@@ -1397,6 +1454,20 @@ export function App() {
                 </button>
               ))}
             </div>
+            {(previewMode === "overlay" || previewMode === "room") && (
+              <div className="preview-team-visibility" aria-label="阵容显示控制">
+                {sides.map((side) => (
+                  <label key={side}>
+                    <input
+                      type="checkbox"
+                      checked={!(project.style.teamVisibility?.[side] ?? true)}
+                      onChange={(event) => updateTeamVisibility(side, event.currentTarget.checked)}
+                    />
+                    隐藏{side === "left" ? "左队" : "右队"}
+                  </label>
+                ))}
+              </div>
+            )}
             <div className="resolution-menu">
               <button
                 type="button"
@@ -1596,25 +1667,23 @@ export function App() {
           </label>
           <label className="field-row">
             <span>底框</span>
-            <select
-              value={project.style.cardBackground}
-              onChange={(event) =>
-                updateStyle({
-                  cardBackground: event.currentTarget.value as RosterProject["style"]["cardBackground"]
-                })
-              }
+            <select aria-label="底框"
+              value={project.style.cardBackground === "cloud" ? (project.style.cloudTheme === "s4" ? (project.style.s4CardPlate ?? "moon-ring") : "s3") : project.style.cardBackground}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                if (value === "moon-ring" || value === "star-pennant" || value === "moon-window") updateStyle({ cardBackground: "cloud", cloudTheme: "s4", s4CardPlate: value });
+                else if (value === "s3") updateStyle({ cardBackground: "cloud", cloudTheme: "s3" });
+                else updateStyle({ cardBackground: value as "transparent" | "rectangle" });
+              }}
             >
-              <option value="cloud">柔和云朵</option>
+              <option value="moon-ring">S4 · A 月环留白</option>
+              <option value="star-pennant">S4 · B 星轨横签</option>
+              <option value="moon-window">S4 · C 月窗徽章</option>
+              <option value="s3">S3 柔和云朵</option>
               <option value="transparent">纯透明</option>
               <option value="rectangle">矩形背景</option>
             </select>
-            <output>
-              {project.style.cardBackground === "cloud"
-                ? "云朵"
-                : project.style.cardBackground === "rectangle"
-                  ? "矩形"
-                  : "无底板"}
-            </output>
+            <output>{project.style.cardBackground === "cloud" ? (project.style.cloudTheme === "s4" ? ({ "moon-ring": "月环", "star-pennant": "横签", "moon-window": "月窗" }[project.style.s4CardPlate ?? "moon-ring"]) : "云朵") : project.style.cardBackground === "rectangle" ? "矩形" : "无底板"}</output>
           </label>
           <label className="field-row">
             <span>底板大小</span>
@@ -1702,6 +1771,8 @@ export function App() {
             onDeleteText={deleteSelectedRoomTextBox}
             teamLayoutMode={teamLayout.mode ?? "curved"}
             onApplyRoomPreset={applyRoomPreset}
+            onApplyTheme={applyTheme}
+            appliedTheme={getAppliedSeasonTheme({ ...project, room: getEditableRoom() })}
             onImportBackground={() => void handleBackgroundImport()}
             onImportTitleImage={() => void handleTitleImageImport()}
             onExportTitleImage={() => void handleTitleImageExport()}
@@ -1888,7 +1959,7 @@ export function App() {
           </div>
           <div className="live-subsection">
             <div className="live-subsection-head">
-              <strong>当前输出</strong>
+              <strong>当前采集</strong>
               <span>{currentObsMode.hint} 分辨率 {formatResolution(outputResolution)}。</span>
             </div>
             <div className="obs-url-row">
@@ -1897,15 +1968,23 @@ export function App() {
                 <Copy size={16} />
               </button>
             </div>
-            <button onClick={() => void openObsWindow(currentCaptureMode)} disabled={Boolean(openingObsWindowMode)}>
-              {openingObsWindowMode === currentCaptureMode ? "打开中" : currentObsMode.windowLabel}
-            </button>
-            <button className="primary-button" onClick={() => void handleExport(currentCaptureMode)}>
-              <Upload size={17} />
-              导出当前 PNG
-            </button>
+            <div className="live-primary-actions">
+              <button
+                className="primary-button"
+                data-testid="current-capture-toggle"
+                onClick={() => void toggleObsWindow(currentCaptureMode)}
+                disabled={Boolean(openingObsWindowMode)}
+              >
+                <MonitorPlay size={17} />
+                {currentCaptureButtonLabel}
+              </button>
+              <button onClick={() => void handleExport(currentCaptureMode)} disabled={isExporting}>
+                <Upload size={17} />
+                导出当前 PNG
+              </button>
+            </div>
           </div>
-          <PanelDetails title="更多 PNG 导出" description="左右队、双方透明和直播间" testId="live-more-export">
+          <PanelDetails title="批量 PNG" description="按用途导出各个透明画面" testId="live-more-export">
             <button className="primary-button" onClick={() => void handleExport("overlay")}>
               <Upload size={17} />
               导出双方透明 PNG
@@ -1925,14 +2004,19 @@ export function App() {
               导出直播间 PNG
             </button>
           </PanelDetails>
-          <PanelDetails title="所有 OBS 地址" description="按采集源复制或打开窗口" testId="live-all-obs">
+          <PanelDetails title="其他采集源" description="切换到当前预览之外的采集画面" testId="live-all-obs">
           <div className="obs-mode-list">
-            {obsModes.map((item) => {
+            {obsModes.filter((item) => item.mode !== currentCaptureMode).map((item) => {
               return (
                 <div className="obs-mode-card" key={item.mode}>
                   <div className="obs-mode-head">
                     <strong>{item.label}</strong>
-                    <span>{item.hint} 尺寸随当前输出自动适配。</span>
+                    <span>
+                      {item.hint}{" "}
+                      {item.mode === "left" || item.mode === "right"
+                        ? "默认随输出分辨率适配，可在单队窗口设置中覆盖。"
+                        : "尺寸随当前输出自动适配。"}
+                    </span>
                   </div>
                   <div className="obs-url-row">
                     <input value={obsUrls[item.mode]} readOnly />
@@ -1940,23 +2024,26 @@ export function App() {
                       <Copy size={16} />
                     </button>
                   </div>
-                  <button onClick={() => void openObsWindow(item.mode)} disabled={Boolean(openingObsWindowMode)}>
-                    {openingObsWindowMode === item.mode ? "打开中" : item.windowLabel}
+                  <button onClick={() => void toggleObsWindow(item.mode)} disabled={Boolean(openingObsWindowMode)}>
+                    {openingObsWindowMode === item.mode
+                      ? "打开中"
+                      : obsWindowState.open && obsWindowState.mode === item.mode
+                        ? "关闭采集窗口"
+                        : item.windowLabel}
                   </button>
                 </div>
               );
             })}
           </div>
-          <button onClick={() => void closeObsWindow()}>关闭透明窗口</button>
           </PanelDetails>
           <PanelDetails
-            title="透明窗口设置"
-            description="窗口采集尺寸、置顶和鼠标穿透"
+            title="单队窗口设置"
+            description="仅影响左队、右队独立窗口；双方与直播间跟随输出分辨率"
             testId="live-window-settings"
             className="live-window-settings"
           >
           <label className="field-row">
-            <span>窗口宽</span>
+            <span>单队窗口宽</span>
             <RangeInput
               min={240}
               max={1920}
@@ -1979,7 +2066,7 @@ export function App() {
             <output>{resolved.style.obsWindow?.width ?? 420}</output>
           </label>
           <label className="field-row">
-            <span>窗口高</span>
+            <span>单队窗口高</span>
             <RangeInput
               min={360}
               max={2160}
@@ -2051,7 +2138,6 @@ export function App() {
               </button>
             </div>
           )}
-          <MissingSummary missingNames={resolved.missingNames} />
         </section>
         )}
 
@@ -2495,6 +2581,8 @@ interface RoomDesignPanelProps {
   onDeleteText: (id?: string) => void;
   teamLayoutMode: TeamLayoutMode;
   onApplyRoomPreset: (mode: TeamLayoutMode) => void;
+  onApplyTheme: (theme: SeasonTheme) => void;
+  appliedTheme?: SeasonTheme;
   onImportBackground: () => void;
   onImportTitleImage: () => void;
   onExportTitleImage: () => void;
@@ -2515,6 +2603,8 @@ function RoomDesignPanel({
   onDeleteText,
   teamLayoutMode,
   onApplyRoomPreset,
+  onApplyTheme,
+  appliedTheme,
   onImportBackground,
   onImportTitleImage,
   onExportTitleImage,
@@ -2565,17 +2655,12 @@ function RoomDesignPanel({
     [assets, hud.playerBar.leftAvatarPath, hud.playerBar.rightAvatarPath, avatarSearch]
   );
   const titleTextBox = room.textBoxes.find((box) => box.role === "title");
+  const showMatchFormat = hud.playerBar.showFormat ?? Boolean(hud.playerBar.boText.trim());
   const selectTitleText = () => {
     if (titleTextBox) {
       onSelectText(titleTextBox.id);
     }
   };
-  const withDefaultTitleTextStyle = (nextRoom: RoomDesign): RoomDesign => ({
-    ...nextRoom,
-    textBoxes: nextRoom.textBoxes.map((box) =>
-      box.role === "title" ? { ...box, ...getDefaultRoomTitleTextStyle() } : box
-    )
-  });
   const patchTitleImage = (patch: Partial<typeof hud.titleImage>) => {
     patchRoom({
       hud: {
@@ -2587,45 +2672,18 @@ function RoomDesignPanel({
       }
     });
   };
-  const toggleTitleImageVisible = () => {
-    const visible = !hud.titleImage.visible;
-    if (visible) {
-      patchTitleImage({ visible: true });
-      onSelectTitleImage();
-      return;
-    }
-    onRoomChange(
-      normalizeRoomDesign(
-        withDefaultTitleTextStyle({
-          ...room,
-          hud: {
-            ...hud,
-            titleImage: {
-              ...hud.titleImage,
-              visible: false
-            }
-          }
-        })
-      )
-    );
-    selectTitleText();
+  const titleArtVisible = Boolean(hud.titleImage.visible && hud.titleImage.imagePath);
+  const titleSeason = titleTextBox?.fillStyle === "s4-moonlight" ? "s4" : "s3";
+  const setTitleMode = (art: boolean) => {
+    patchTitleImage({
+      ...(!hud.titleImage.imagePath ? getSeasonTitleImage(hud.titleImage, titleSeason) : {}),
+      visible: art
+    });
+    if (art) onSelectTitleImage();
+    else selectTitleText();
   };
   const removeTitleImage = () => {
-    onRoomChange(
-      normalizeRoomDesign(
-        withDefaultTitleTextStyle({
-          ...room,
-          hud: {
-            ...hud,
-            titleImage: {
-              ...hud.titleImage,
-              visible: false,
-              imagePath: undefined
-            }
-          }
-        })
-      )
-    );
+    patchTitleImage({ visible: false, imagePath: undefined });
     selectTitleText();
   };
   const patchPlayerBar = (patch: Partial<typeof hud.playerBar>) => {
@@ -2650,7 +2708,13 @@ function RoomDesignPanel({
     if (!selectedText) {
       return;
     }
-    onTextChange({ ...selectedText, ...patch });
+    const hudText = selectedText.role.startsWith("player-") || selectedText.role.startsWith("score-");
+    onTextChange({
+      ...selectedText,
+      ...patch,
+      ...(hudText && patch.fontFamily !== undefined ? { hudFontOverride: true } : {}),
+      ...(hudText && patch.color !== undefined ? { hudColorOverride: true } : {})
+    });
   };
   const patchRoleText = (role: RoomTextBox["role"], patch: Partial<RoomTextBox>) => {
     const target = room.textBoxes.find((box) => box.role === role);
@@ -2665,10 +2729,13 @@ function RoomDesignPanel({
       })
     );
   };
+  const selectedTextAppearance = selectedText ? resolveRoomHudTextAppearance(selectedText, hud.playerBar.preset) : undefined;
   const selectedTextPresets = selectedText ? getRoomTextStylePresetsForRole(selectedText.role) : [];
   const selectedStrokeEnabled = selectedText ? selectedText.strokeEnabled ?? selectedText.strokeWidth > 0 : false;
   const playerBarPresetStatus =
-    hud.playerBar.preset === "s3-clover-hinge"
+    hud.playerBar.preset === "s4-moon-relic"
+      ? "S4 月相遗迹"
+      : hud.playerBar.preset === "s3-clover-hinge"
       ? "S3 四叶合页"
       : hud.playerBar.preset === "s3-storybook"
         ? "S3 童话书脊"
@@ -2683,7 +2750,48 @@ function RoomDesignPanel({
   return (
     <section className="panel-section room-design-section">
       <div className="section-title">直播间装修</div>
-      <div className="room-control-group">
+      <div className="room-control-group season-theme-group" data-testid="season-theme-group">
+        <div className="room-control-head"><strong>赛季主题</strong><span>{appliedTheme ? "整套已应用" : "自定义搭配"}</span></div>
+        <div className="season-theme-options">
+          {seasonThemes.map((theme) => <button type="button" key={theme.id}
+            aria-pressed={appliedTheme === theme.id} data-theme={theme.id}
+            onClick={() => onApplyTheme(theme.id)}>
+            <span className="season-theme-mark" aria-hidden="true">{theme.id === "s4" ? "☾" : "✿"}</span>
+            <span>{theme.name}</span>
+          </button>)}
+        </div>
+        <p className="small-note">应用标题、选手栏和精灵衬板，保留已编辑文字与布局。</p>
+      </div>
+      <div className="room-control-group" data-testid="room-title-mode">
+        <div className="room-control-head"><strong>赛季标题</strong><span>{titleArtVisible ? "美术字标" : "可编辑文字"}</span></div>
+        <div className="season-theme-options">
+          <button type="button" aria-pressed={titleArtVisible} onClick={() => setTitleMode(true)}>美术字标</button>
+          <button type="button" aria-pressed={!titleArtVisible} onClick={() => setTitleMode(false)}>系统字标（可编辑）</button>
+        </div>
+        {titleArtVisible ? (
+          <>
+            <label className="field-row">
+              <span>字标素材</span>
+              <select aria-label="字标素材" value={hud.titleImage.imagePath} onChange={(event) => {
+                const imagePath = event.currentTarget.value;
+                const theme = imagePath === builtinS4RoomTitle ? "s4" : "s3";
+                patchTitleImage({ ...getSeasonTitleImage({ ...hud.titleImage, imagePath: builtinRoomTitle }, theme), imagePath });
+              }}>
+                <option value={builtinS4RoomTitle}>S4 月涌狂想</option>
+                <option value={builtinRoomTitle}>S3 赛季字标</option>
+                {hud.titleImage.imagePath !== builtinRoomTitle && hud.titleImage.imagePath !== builtinS4RoomTitle && <option value={hud.titleImage.imagePath}>自定义字标</option>}
+              </select>
+            </label>
+            <p className="small-note">可拖动、缩放或导入字标；要改标题文字，请切换系统字标。</p>
+          </>
+        ) : (
+          <label className="field-row field-row-wide">
+            <span>标题文字</span>
+            <input aria-label="标题文字" value={titleTextBox?.text ?? ""} onChange={(event) => patchRoleText("title", { text: event.currentTarget.value })} />
+          </label>
+        )}
+      </div>
+      <div className="room-control-group" data-testid="room-layout-mode">
         <div className="room-control-head">
           <strong>模式</strong>
           <span>{teamLayoutMode === "vertical" ? "3.2.5 旧版预设" : "新版直播预设"}</span>
@@ -2849,7 +2957,8 @@ function RoomDesignPanel({
               })
             }
           >
-            <option value="s3-clover-hinge">S3 四叶合页（默认）</option>
+            <option value="s4-moon-relic">S4 月相遗迹</option>
+            <option value="s3-clover-hinge">S3 四叶合页</option>
             <option value="s3-storybook">S3 童话书脊</option>
             <option value="s3-prism-bookmark">S3 棱镜书签</option>
             <option value="classic">经典直播栏</option>
@@ -2886,16 +2995,36 @@ function RoomDesignPanel({
             />
             <output>{Math.round((hud.playerBar.textScale ?? 1) * 100)}%</output>
           </label>
-          <p className="room-control-hint">VS 与赛制保持独立字号。</p>
+          <p className="room-control-hint">选手名和比分可在文字设置中分别调整。</p>
         </PanelDetails>
-        <label className="field-row">
-          <span>赛制</span>
-          <input
-            value={hud.playerBar.boText}
-            onChange={(event) => patchPlayerBar({ boText: event.currentTarget.value })}
-          />
-          <output>{hud.playerBar.boText || "BO"}</output>
-        </label>
+        <div className="room-score-layout-controls" data-testid="score-center-layout">
+          <div className="room-control-subhead"><strong>中央版式</strong></div>
+          <div className="season-theme-options">
+            <button type="button" aria-pressed={!showMatchFormat}
+              onClick={() => patchPlayerBar({ showFormat: false })}>仅 VS</button>
+            <button type="button" aria-pressed={showMatchFormat}
+              onClick={() => patchPlayerBar({ showFormat: true, boText: hud.playerBar.boText.trim() || "BO5" })}>VS＋比赛局数</button>
+          </div>
+          <p className="room-control-hint">{showMatchFormat ? "VS 在上，比赛局数在下；左右比分保持居中。" : "VS 与左右比分同排居中，已填写的比赛局数会保留。"}</p>
+          {showMatchFormat && <label className="field-row">
+            <span>比赛局数</span>
+            <input aria-label="比赛局数" placeholder="例如 BO3、BO5、BO7"
+              value={hud.playerBar.boText}
+              onChange={(event) => patchPlayerBar({ boText: event.currentTarget.value })} />
+          </label>}
+          <PanelDetails title="中央文字大小" description="调整 VS 和比赛局数的字号" testId="score-center-fonts">
+            <label className="field-row"><span>VS 字号</span>
+              <RangeInput min={12} max={72} value={hud.playerBar.vsFontSize ?? (hud.playerBar.preset === "s4-moon-relic" ? 26 : 39)}
+                onChange={(value) => patchPlayerBar({ vsFontSize: value })} />
+              <output>{hud.playerBar.vsFontSize ?? (hud.playerBar.preset === "s4-moon-relic" ? 26 : 39)}</output>
+            </label>
+            {showMatchFormat && <label className="field-row"><span>比赛局数字号</span>
+              <RangeInput min={10} max={56} value={hud.playerBar.formatFontSize ?? (hud.playerBar.preset === "s4-moon-relic" ? 20 : 28)}
+                onChange={(value) => patchPlayerBar({ formatFontSize: value })} />
+              <output>{hud.playerBar.formatFontSize ?? (hud.playerBar.preset === "s4-moon-relic" ? 20 : 28)}</output>
+            </label>}
+          </PanelDetails>
+        </div>
         <div className="room-avatar-panel">
           <div className="room-control-subhead">
             <strong>头像位</strong>
@@ -2981,13 +3110,6 @@ function RoomDesignPanel({
         </div>
         <div className="room-hud-quick-text">
           <label>
-            <span>标题</span>
-            <input
-              value={room.textBoxes.find((box) => box.role === "title")?.text ?? ""}
-              onChange={(event) => patchRoleText("title", { text: event.currentTarget.value })}
-            />
-          </label>
-          <label>
             <span>左选手</span>
             <input
               value={room.textBoxes.find((box) => box.role === "player-left")?.text ?? ""}
@@ -3020,13 +3142,6 @@ function RoomDesignPanel({
           <button type="button" onClick={onImportTitleImage}>
             <ImagePlus size={16} />
             导入标题图
-          </button>
-          <button
-            type="button"
-            onClick={toggleTitleImageVisible}
-            disabled={!hud.titleImage.imagePath}
-          >
-            {hud.titleImage.visible ? "隐藏标题图" : "显示标题图"}
           </button>
         </div>
         {hud.titleImage.imagePath && hud.titleImage.visible && (
@@ -3276,7 +3391,7 @@ function RoomDesignPanel({
           )}
           <FontPicker
             label="字体"
-            value={selectedText.fontFamily}
+            value={selectedTextAppearance!.fontFamily}
             onChange={(fontFamily) => patchSelectedText({ fontFamily })}
           />
           {selectedText.role === "title" && (
@@ -3285,15 +3400,16 @@ function RoomDesignPanel({
               <select
                 value={selectedText.fillStyle ?? "solid"}
                 onChange={(event) => {
-                  const fillStyle = event.currentTarget.value === "s3-lead-prism" ? "s3-lead-prism" : "solid";
-                  const leadPreset = selectedTextPresets.find((preset) => preset.id === "s3-lead-prism");
-                  patchSelectedText(fillStyle === "s3-lead-prism" && leadPreset ? leadPreset.style : { fillStyle });
+                  const fillStyle = event.currentTarget.value as RoomTextBox["fillStyle"];
+                  const preset = selectedTextPresets.find((item) => item.id === fillStyle);
+                  patchSelectedText(preset ? preset.style : { fillStyle: "solid" });
                 }}
               >
+                <option value="s4-moonlight">月涌狂想</option>
                 <option value="s3-lead-prism">铅绘幻梦</option>
                 <option value="solid">纯色</option>
               </select>
-              <output>{selectedText.fillStyle === "s3-lead-prism" ? "纹理" : "纯色"}</output>
+              <output>{selectedText.fillStyle && selectedText.fillStyle !== "solid" ? "纹理" : "纯色"}</output>
             </label>
           )}
           <label className="field-row">
@@ -3343,7 +3459,7 @@ function RoomDesignPanel({
               <span>文字</span>
               <input
                 type="color"
-                value={toHexColor(selectedText.color, "#ffffff")}
+                value={toHexColor(selectedTextAppearance!.color, "#ffffff")}
                 onChange={(event) => patchSelectedText({ color: event.currentTarget.value })}
               />
             </label>

@@ -19,7 +19,7 @@ const cdpUrl = `http://127.0.0.1:${debugPort}`;
 
 await fs.mkdir(evidenceDir, { recursive: true });
 
-const appProcess = spawn(exePath, [`--remote-debugging-port=${debugPort}`], {
+const appProcess = spawn(exePath, [`--remote-debugging-port=${debugPort}`, ...(process.env.ROSTER_QA_USER_DATA ? [`--user-data-dir=${process.env.ROSTER_QA_USER_DATA}`] : [])], {
   cwd: path.dirname(exePath),
   stdio: "ignore",
   windowsHide: false
@@ -27,16 +27,19 @@ const appProcess = spawn(exePath, [`--remote-debugging-port=${debugPort}`], {
 
 let browser;
 let obsBrowser;
+let gui;
+let originalProject;
 const checks = [];
 
 try {
   await waitForCdp(cdpUrl);
   browser = await chromium.connectOverCDP(cdpUrl);
-  const gui = await waitForPage(browser, (page) => page.url().startsWith("file:"));
+  gui = await waitForPage(browser, (page) => page.url().startsWith("file:"));
   await gui.waitForSelector(".app-shell", { timeout: 30000 });
   await gui.setViewportSize({ width: 1440, height: 900 });
 
   const state = await gui.evaluate(() => window.roster.getState());
+  originalProject = structuredClone(state.project);
   if (!state.assets || state.assets.length < 12) {
     throw new Error(`not enough assets for packaged verification: ${state.assets?.length ?? 0}`);
   }
@@ -51,6 +54,23 @@ try {
   checks.push(["preview canvas ratio", "16:9"]);
   await assertPreviewLabelsReadable(gui);
   checks.push(["preview labels readable", "ok"]);
+
+  await gui.locator(".app-nav").getByRole("button", { name: "直播", exact: true }).click();
+  await gui.waitForSelector("[data-testid='current-capture-toggle']");
+  if ((await gui.locator(".top-obs-url").count()) !== 0) {
+    throw new Error("duplicated top OBS URL is still visible");
+  }
+  await gui.getByTestId("current-capture-toggle").click();
+  await gui.waitForFunction(async () => {
+    const state = await window.roster.getObsWindowState();
+    return state.open && state.mode === "room";
+  });
+  await gui.waitForFunction(
+    () => document.querySelector("[data-testid='current-capture-toggle']")?.textContent?.includes("关闭采集窗口")
+  );
+  await gui.getByTestId("current-capture-toggle").click();
+  await gui.waitForFunction(async () => !(await window.roster.getObsWindowState()).open);
+  checks.push(["live capture window toggle", "open, state sync, close"]);
 
   await gui.locator(".system-status-panel").getByRole("button", { name: /素材库/ }).click();
   await gui.waitForSelector(".asset-search", { timeout: 30000 });
@@ -343,6 +363,10 @@ try {
   );
   console.log(JSON.stringify({ ok: true, checks }, null, 2));
 } finally {
+  if (gui && originalProject && !gui.isClosed()) {
+    await gui.evaluate((project) => window.roster.saveProject(project), originalProject).catch(() => undefined);
+    await gui.waitForTimeout(300).catch(() => undefined);
+  }
   await obsBrowser?.close().catch(() => undefined);
   await browser?.close().catch(() => undefined);
   if (appProcess.pid) {
@@ -371,8 +395,14 @@ function normalizeDemoProject(project, assets) {
   next.style = {
     ...next.style,
     resolution: { width: 1920, height: 1080 },
+    cardGap: 8,
+    imageScale: 0.96,
     cardBackground: "transparent",
+    cloudTheme: "s3",
+    cardPlateScale: 1.02,
+    cardPlateYOffset: 22,
     showElementIcon: true,
+    teamLayout: { mode: "curved", centerGap: 1540, verticalOffset: 0 },
     nameLabel: {
       presetId: "world-battle"
     }

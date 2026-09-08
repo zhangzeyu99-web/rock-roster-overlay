@@ -22,6 +22,11 @@ describe("capture window mouse behavior", () => {
     expect(shouldIgnoreCaptureWindowMouse("right", true)).toBe(true);
   });
 
+  it("restores mouse input after a pass-through capture window gains focus", () => {
+    expect(shouldIgnoreCaptureWindowMouse("room", true, true)).toBe(false);
+    expect(shouldIgnoreCaptureWindowMouse("left", true, true)).toBe(false);
+  });
+
   it("uses the selected output size for default 1440p side capture windows", () => {
     expect(getCaptureWindowOptions("left", defaultCaptureWindowStyle, { width: 2560, height: 1440 })).toMatchObject({
       width: 560,
